@@ -1,0 +1,13 @@
+{
+  "name": "ProyectoWeb",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite",
+  "proxies": [
+    {
+      "path": "/api",
+      "proxyUrl": "http://192.168.1.234:8090"
+    }
+  ]
+}
