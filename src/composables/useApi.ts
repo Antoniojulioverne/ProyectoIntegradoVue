@@ -1,8 +1,22 @@
-import { ref } from 'vue';
+import { ref, computed,readonly } from 'vue';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { toastController } from '@ionic/vue';
+import config from '@/config/config';
 
-const API_BASE_URL = 'http://192.168.1.234:8090/GameConnect';
+// Tipos
+interface ApiError {
+  message: string;
+  status?: number;
+  code?: string;
+}
+
+interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
 
 interface Partida {
   partidaId: number;
@@ -12,50 +26,90 @@ interface Partida {
   fecha: string;
 }
 
-export function useApi() {
-  const isLoading = ref(false);
-  const error = ref<string | null>(null);
+// Estado reactivo global del API
+const globalApiState = ref({
+  isLoading: false,
+  error: null as ApiError | null,
+  lastRequest: null as string | null
+});
 
+export function useApi() {
+  // Estado local
+  const isLoading = ref(false);
+  const error = ref<ApiError | null>(null);
+
+  // Configuración de axios mejorada
   const setupAxiosInterceptors = () => {
-    // Limpiar interceptores anteriores para evitar duplicados
+    // Limpiar interceptores anteriores
+    axios.interceptors.request.clear();
     axios.interceptors.response.clear();
     
-    const token = localStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
-
-    axios.interceptors.response.use(
-      response => response,
-      error => {
-        console.error('Interceptor error:', error.response?.status, error.response?.data);
-        
-        // Solo redirigir si es realmente un problema de token expirado
-        if (error.response?.status === 401) {
-          const errorData = error.response?.data;
-          const isTokenExpired = errorData?.message?.includes('token') || 
-                                errorData?.message?.includes('expired') ||
-                                errorData?.error?.includes('token') ||
-                                error.response?.headers?.['www-authenticate']?.includes('expired');
-          
-          if (isTokenExpired) {
-            console.warn('Token realmente expirado, limpiando sesión');
-            localStorage.removeItem('token');
-            localStorage.removeItem('usuario');
-            window.location.href = '/';
-          }
+    // Request interceptor
+    axios.interceptors.request.use(
+      (config) => {
+        const token = getAuthToken();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
         
-        // Para 403, no limpiar automáticamente - puede ser un problema de permisos específico
+        // Configuración por defecto
+        config.timeout = config.timeout || 15000;
+        config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json';
+        config.headers['Accept'] = 'application/json';
+        
+        globalApiState.value.lastRequest = config.url || null;
+        
+        return config;
+      },
+      (error) => {
+        console.error('❌ Error en request interceptor:', error);
+        return Promise.reject(error);
+      }
+    );
+
+    // Response interceptor
+    axios.interceptors.response.use(
+      (response) => {
+        // Log exitoso para debugging
+        console.log(`✅ API Success: ${response.config.method?.toUpperCase()} ${response.config.url}`);
+        return response;
+      },
+      (error) => {
+        console.error('❌ API Error:', {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+        
+        // Manejo automático de errores comunes
+        if (error.response?.status === 401) {
+          handleUnauthorized();
+        }
+        
         return Promise.reject(error);
       }
     );
   };
 
+  // === UTILIDADES ===
+
+  const getAuthToken = (): string | null => {
+    return localStorage.getItem(config.storage.token);
+  };
+
+  const handleUnauthorized = () => {
+    console.warn('🔐 Token expirado o inválido');
+    localStorage.removeItem(config.storage.token);
+    localStorage.removeItem(config.storage.user);
+    // Redirigir al login se maneja en el componente
+    showToast('Tu sesión ha expirado. Por favor, inicia sesión nuevamente', 'warning');
+  };
+
   const showToast = async (
     message: string,
     color: string = 'success',
-    duration: number = 2000
+    duration: number = 3000
   ) => {
     const toast = await toastController.create({
       message,
@@ -66,198 +120,246 @@ export function useApi() {
     await toast.present();
   };
 
-  const handleApiError = (err: any, defaultMessage = 'Error desconocido'): string => {
-    console.error('API Error:', err);
+  const handleApiError = (err: any, operation: string = 'operación'): ApiError => {
+    console.error(`❌ Error en ${operation}:`, err);
 
-    if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
-      return 'No se pudo conectar con el servidor. Verifica que esté funcionando.';
-    }
-    if (err.code === 'ECONNABORTED') {
-      return 'La conexión tardó demasiado. Intenta de nuevo.';
-    }
-    if (err.response) {
-      const status = err.response.status;
-      const statusText = err.response.statusText;
-      const errorData = err.response.data;
-      
-      // Información más detallada del error
-      console.error('Error details:', {
-        status,
-        statusText,
-        data: errorData,
-        url: err.config?.url,
-        headers: err.config?.headers
-      });
-      
-      if (status === 403) {
-        return 'No tienes permisos para acceder a este recurso';
-      }
-      if (status === 401) {
-        return 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente';
-      }
-      
-      return `Error del servidor: ${status} - ${statusText}`;
-    }
-    if (err.request) {
-      return 'No se recibió respuesta del servidor.';
-    }
-
-    return err.message || defaultMessage;
-  };
-const changeUserSkin = async (userId: number, skin: string) => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      throw new Error('Token de sesión no encontrado');
-    }
-
-    const config: AxiosRequestConfig = {
-      method: 'PUT',
-      url: `${API_BASE_URL}/usuario/${userId}/skin`,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      data: { skin } // 👈 Esto genera {"skin": "red"} automáticamente
+    let apiError: ApiError = {
+      message: `Error en ${operation}`,
+      status: err.response?.status,
+      code: err.code
     };
 
-    console.log(`Changing skin for user ${userId} to ${skin}`);
-    const response = await axios(config);
-    await showToast(`Skin actualizado a ${skin}`, 'success');
+    // Errores de red
+    if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
+      apiError.message = 'No se pudo conectar con el servidor';
+    } else if (err.code === 'ECONNABORTED') {
+      apiError.message = 'La conexión tardó demasiado';
+    } 
+    // Errores HTTP
+    else if (err.response) {
+      const status = err.response.status;
+      const data = err.response.data;
+      
+      switch (status) {
+        case 400:
+          apiError.message = typeof data === 'string' ? data : 'Datos inválidos';
+          break;
+        case 401:
+          apiError.message = 'No autorizado - Inicia sesión nuevamente';
+          break;
+        case 403:
+          apiError.message = 'No tienes permisos para esta acción';
+          break;
+        case 404:
+          apiError.message = 'Recurso no encontrado';
+          break;
+        case 409:
+          apiError.message = 'Conflicto - El recurso ya existe';
+          break;
+        case 422:
+          apiError.message = 'Datos de entrada inválidos';
+          break;
+        case 429:
+          apiError.message = 'Demasiadas solicitudes - Intenta más tarde';
+          break;
+        case 500:
+          apiError.message = 'Error interno del servidor';
+          break;
+        default:
+          apiError.message = typeof data === 'string' ? data : `Error del servidor (${status})`;
+      }
+    }
+    // Error de request
+    else if (err.request) {
+      apiError.message = 'No se recibió respuesta del servidor';
+    }
+    // Error desconocido
+    else {
+      apiError.message = err.message || 'Error desconocido';
+    }
+
+    return apiError;
+  };
+
+  // === MÉTODOS GENÉRICOS ===
+
+  const makeRequest = async <T>(
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  endpoint: string,
+  data?: any,
+  axiosConfig?: AxiosRequestConfig  // ✅ Cambiar nombre del parámetro
+): Promise<T> => {
+  setLoading(true);
+  setError(null);
+
+  try {
+    // ✅ Ahora config se refiere al objeto de configuración global
+    const url = endpoint.startsWith('http') ? endpoint : `${config.api.fullApiUrl}${endpoint}`;
+    
+    let response: AxiosResponse<T>;
+    
+    switch (method) {
+      case 'GET':
+        response = await axios.get(url, axiosConfig);  // ✅ Usar axiosConfig
+        break;
+      case 'POST':
+        response = await axios.post(url, data, axiosConfig);  // ✅ Usar axiosConfig
+        break;
+      case 'PUT':
+        response = await axios.put(url, data, axiosConfig);  // ✅ Usar axiosConfig
+        break;
+      case 'DELETE':
+        response = await axios.delete(url, axiosConfig);  // ✅ Usar axiosConfig
+        break;
+      default:
+        throw new Error(`Método HTTP no soportado: ${method}`);
+    }
+
     return response.data;
   } catch (err: any) {
-    const errorMessage = handleApiError(err, 'No se pudo cambiar la skin');
-    console.error('changeUserSkin error:', errorMessage);
-    await showToast(errorMessage, 'danger');
-    throw new Error(errorMessage);
+    const apiError = handleApiError(err, `${method} ${endpoint}`);
+    setError(apiError);
+    throw apiError;
+  } finally {
+    setLoading(false);
   }
 };
 
-  const makeRequest = async (
-    url: string,
-    options: AxiosRequestConfig = {}
-  ): Promise<AxiosResponse> => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Token de sesión no encontrado');
-      }
+  // === OPERACIONES ESPECÍFICAS ===
 
-      // Verificar que el token no esté vacío o corrupto
-      if (token.length < 10) {
-        throw new Error('Token de sesión inválido');
-      }
-
-      const config: AxiosRequestConfig = {
-        timeout: 15000, // Aumentar timeout
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        },
-        ...options
-      };
-
-      console.log('Making request to:', `${API_BASE_URL}${url}`);
-      console.log('Token (first 20 chars):', token.substring(0, 20) + '...');
-
-      const response = await axios.get(`${API_BASE_URL}${url}`, config);
-      return response;
-    } catch (err: any) {
-      console.error('Request failed:', {
-        url: `${API_BASE_URL}${url}`,
-        error: err.response?.data || err.message,
-        status: err.response?.status
-      });
-      throw err; // Lanzar el error original para mejor debugging
-    }
-  };
-
+  // Usuarios
   const fetchUserGames = async (userId: number): Promise<Partida[]> => {
-    try {
-      console.log('Fetching games for user:', userId);
-      const response = await makeRequest(`/usuario/${userId}/partidas`);
+    console.log('📊 Obteniendo partidas del usuario:', userId);
+    
+    const games = await makeRequest<Partida[]>('GET', `/usuario/${userId}/partidas`);
+    
+    // Ordenar por fecha descendente
+    const sortedGames = games.sort(
+      (a: Partida, b: Partida) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
+    );
 
-      if (!Array.isArray(response.data)) {
-        console.error('Invalid response format:', response.data);
-        throw new Error('La respuesta no es un array válido');
-      }
-
-      const sortedGames = response.data.sort(
-        (a: Partida, b: Partida) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
-      );
-
-      await showToast(`Se cargaron ${sortedGames.length} partidas correctamente`);
-      return sortedGames;
-    } catch (err: any) {
-      const errorMessage = handleApiError(err);
-      console.error('fetchUserGames error:', errorMessage);
-      await showToast(errorMessage, 'danger', 4000);
-      throw new Error(errorMessage);
-    }
+    await showToast(`Se cargaron ${sortedGames.length} partidas correctamente`);
+    return sortedGames;
   };
 
-  const fetchUserPointsAndMoney = async (userId: number) => {
+  const fetchUserStats = async (userId: number) => {
+    console.log('📈 Obteniendo estadísticas del usuario:', userId);
+    
     try {
-      console.log('Fetching points and money for user:', userId);
-      
-      let totalPoints = 0;
-      let totalCoins = 0;
+      const [pointsData, coinsData] = await Promise.allSettled([
+        makeRequest<number>('GET', `/usuario/${userId}/puntos`),
+        makeRequest<number>('GET', `/usuario/${userId}/monedas`)
+      ]);
 
-      // Hacer llamadas secuenciales para mejor debugging
-      try {
-        const pointsResponse = await makeRequest(`/usuario/${userId}/puntos`);
-        totalPoints = pointsResponse.data || 0;
-        console.log('Points fetched successfully:', totalPoints);
-      } catch (error) {
-        console.error('Error fetching points:', error);
-        // Continuar con monedas aunque falle puntos
-      }
+      const totalPoints = pointsData.status === 'fulfilled' ? pointsData.value : 0;
+      const totalCoins = coinsData.status === 'fulfilled' ? coinsData.value : 0;
 
-      try {
-        const moneyResponse = await makeRequest(`/usuario/${userId}/monedas`);
-        totalCoins = moneyResponse.data || 0;
-        console.log('Coins fetched successfully:', totalCoins);
-      } catch (error) {
-        console.error('Error fetching coins:', error);
-      }
-
+      console.log('✅ Estadísticas obtenidas:', { totalPoints, totalCoins });
       return { totalPoints, totalCoins };
+      
     } catch (error) {
-      console.error('Error al obtener puntos y dinero:', error);
+      console.error('❌ Error obteniendo estadísticas:', error);
       return { totalPoints: 0, totalCoins: 0 };
     }
   };
 
   const fetchRankingData = async () => {
-    try {
-      console.log('Fetching ranking data');
-      const response = await makeRequest('/usuario/ranking');
-
-      if (!Array.isArray(response.data)) {
-        throw new Error('La respuesta no es un array válido');
-      }
-
-      await showToast(`Se cargó el ranking con ${response.data.length} jugadores`);
-      return response.data;
-    } catch (err: any) {
-      const errorMessage = handleApiError(err);
-      console.error('fetchRankingData error:', errorMessage);
-      await showToast(errorMessage, 'danger', 4000);
-      throw new Error(errorMessage);
-    }
+    console.log('🏆 Obteniendo ranking global');
+    
+    const ranking = await makeRequest<any[]>('GET', '/usuario/ranking');
+    
+    await showToast(`Ranking cargado con ${ranking.length} jugadores`);
+    return ranking;
   };
 
-  
+  const changeUserSkin = async (userId: number, skin: string) => {
+    console.log('🎨 Cambiando skin del usuario:', userId, 'a:', skin);
+    
+    await makeRequest('PUT', `/usuario/${userId}/skin`, { skin });
+    
+    await showToast(`Skin actualizado a ${skin}`, 'success');
+  };
+
+  const createGame = async (gameData: any) => {
+    console.log('🎮 Creando nueva partida:', gameData);
+    
+    const newGame = await makeRequest('POST', '/partida', gameData);
+    
+    await showToast('Partida registrada exitosamente', 'success');
+    return newGame;
+  };
+
+  // Búsqueda
+  const searchUsers = async (term: string, currentUserId: number) => {
+    if (!term.trim()) {
+      throw new Error('El término de búsqueda no puede estar vacío');
+    }
+
+    console.log('🔍 Buscando usuarios con término:', term);
+    
+    return await makeRequest('GET', 
+      `/usuario/buscar?termino=${encodeURIComponent(term)}&usuarioActualId=${currentUserId}`);
+  };
+
+  // === GESTIÓN DE ESTADO ===
+
+  const setLoading = (loading: boolean) => {
+    isLoading.value = loading;
+    globalApiState.value.isLoading = loading;
+  };
+
+  const setError = (err: ApiError | null) => {
+    error.value = err;
+    globalApiState.value.error = err;
+  };
+
+  const clearError = () => {
+    setError(null);
+  };
+
+  // === COMPUTED ===
+
+  const hasError = computed(() => error.value !== null);
+  const isConnected = computed(() => !error.value || error.value.code !== 'ERR_NETWORK');
+
+  // === INICIALIZACIÓN ===
+
   setupAxiosInterceptors();
 
+  // === RETORNO DEL COMPOSABLE ===
+
   return {
-    isLoading,
-    error,
-    fetchUserGames,
-    fetchUserPointsAndMoney,
-    fetchRankingData,
+    // Estado
+    isLoading: readonly(isLoading),
+    error: readonly(error),
+    hasError,
+    isConnected,
+    globalApiState: readonly(globalApiState),
+
+    // Métodos genéricos
+    makeRequest,
     showToast,
+    clearError,
+
+    // Métodos específicos - Usuarios
+    fetchUserGames,
+    fetchUserStats,
+    fetchRankingData,
     changeUserSkin,
+    searchUsers,
+    createGame,
+
+    // Utilidades
+    handleApiError,
+    setupAxiosInterceptors
   };
 }
+
+// Hook global para acceso rápido al estado de la API
+export const useGlobalApiState = () => {
+  return {
+    globalApiState: readonly(globalApiState),
+    isGloballyLoading: computed(() => globalApiState.value.isLoading),
+    hasGlobalError: computed(() => globalApiState.value.error !== null)
+  };
+};

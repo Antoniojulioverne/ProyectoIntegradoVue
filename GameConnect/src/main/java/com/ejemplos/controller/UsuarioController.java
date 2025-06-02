@@ -161,7 +161,7 @@ public class UsuarioController {
 	        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuario no encontrado");
 	    }
 
-	    List<Partida> partidas = partidaRepositorio.findByUsuario(usuario);
+	    List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
 
 	    if (partidas.isEmpty()) {
 	        return ResponseEntity.status(HttpStatus.NO_CONTENT).body("El usuario no tiene partidas registradas");
@@ -194,7 +194,7 @@ public class UsuarioController {
 	        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuario no encontrado");
 	    }
 
-	    List<Partida> partidas = partidaRepositorio.findByUsuario(usuario);
+	    List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
 	    int puntosTotales = partidas.stream().mapToInt(Partida::getPuntos).sum();
 
 	    return ResponseEntity.ok(puntosTotales);
@@ -207,7 +207,7 @@ public class UsuarioController {
 	        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Usuario no encontrado");
 	    }
 
-	    List<Partida> partidas = partidaRepositorio.findByUsuario(usuario);
+	    List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
 	    int monedasTotales = partidas.stream().mapToInt(Partida::getMonedas).sum();
 
 	    return ResponseEntity.ok(monedasTotales);
@@ -220,7 +220,7 @@ public class UsuarioController {
 		
 		List<UsuarioRankingDTO> ranking = usuarios.stream()
 				.map(usuario -> {
-					List<Partida> partidas = partidaRepositorio.findByUsuario(usuario);
+					List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
 					
 					return partidas.stream()
 							.max((p1, p2) -> Integer.compare(p1.getPuntos(), p2.getPuntos()))

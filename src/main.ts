@@ -20,21 +20,19 @@ import '@ionic/vue/css/text-transformation.css';
 import '@ionic/vue/css/flex-utils.css';
 import '@ionic/vue/css/display.css';
 
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
- */
-
-/* @import '@ionic/vue/css/palettes/dark.always.css'; */
-/* @import '@ionic/vue/css/palettes/dark.class.css'; */
+/* Ionic Dark Mode */
 import '@ionic/vue/css/palettes/dark.system.css';
 
 /* Theme variables */
 import './theme/variables.css';
-// En main.ts o main.js
+
+/* Design System - DEBE IR DESPUÉS DE LOS ESTILOS DE IONIC */
+import './styles/design-system.css';
+
+// Global window polyfill
 (window as any).global = window;
+
+// Iconos de Ionic
 import {
   send,
   checkmark,
@@ -70,11 +68,23 @@ import {
   settingsOutline,
   wifi,
   add,
-  people
+  people,
+  personAdd,
+  personCircle,
+  searchOutline,
+  mailOpen,
+  paperPlane,
+  hourglass,
+  closeCircle,
+  alertCircle,
+  refresh,
+  sync,
+  cloudOfflineOutline
 } from 'ionicons/icons';
 
 import { addIcons } from 'ionicons';
 
+// Registrar todos los iconos
 addIcons({
   send,
   add,
@@ -83,17 +93,19 @@ addIcons({
   people,
   'arrow-back': arrowBack,
   person,
+  'person-add': personAdd,
+  'person-circle': personCircle,
   chatbox,
   'chatbubbles-outline': chatbubblesOutline,
   'log-out': logOut,
   'chatbubbles': chatbubbles,
   moon,
-  'moon-outline':moonOutline,
-  'sunny-outline':sunnyOutline,
+  'moon-outline': moonOutline,
+  'sunny-outline': sunnyOutline,
   sunny,
-  'grid-outline':gridOutline,
-  'people-outline':peopleOutline,
-  'settings-outline':settingsOutline,
+  'grid-outline': gridOutline,
+  'people-outline': peopleOutline,
+  'settings-outline': settingsOutline,
   menu,
   home,
   heart,
@@ -111,12 +123,24 @@ addIcons({
   'checkmark-done-outline': checkmarkDoneOutline,
   'chatbubble-ellipses': chatbubbleEllipses,
   'chevron-forward': chevronForward,
+  'search-outline': searchOutline,
+  'mail-open': mailOpen,
+  'paper-plane': paperPlane,
+  hourglass,
+  'close-circle': closeCircle,
+  'alert-circle': alertCircle,
+  refresh,
+  sync,
+  'cloud-offline-outline': cloudOfflineOutline
 });
-
-
 
 // Importar el composable de autenticación
 import { useAuth } from '@/composables/useAuth'
+
+// Configurar interceptores de API globalmente
+import { useApi } from '@/composables/useApi'
+const { setupAxiosInterceptors } = useApi()
+setupAxiosInterceptors()
 
 const app = createApp(App)
   .use(IonicVue)
@@ -125,6 +149,27 @@ const app = createApp(App)
 // Inicializar autenticación al arrancar la app
 const { cargarDatosAuth } = useAuth()
 cargarDatosAuth()
+
+// Configurar manejo global de errores
+app.config.errorHandler = (err, vm, info) => {
+  console.error('❌ Error global de Vue:', err, info)
+  
+  // En desarrollo, mostrar errores más detallados
+  if (import.meta.env.DEV) {
+    console.error('Componente:', vm)
+    console.error('Info:', info)
+  }
+}
+
+// Configurar warnings en desarrollo
+if (import.meta.env.DEV) {
+  app.config.warnHandler = (msg, vm, trace) => {
+    console.warn('⚠️ Warning de Vue:', msg)
+    if (trace) {
+      console.warn('Trace:', trace)
+    }
+  }
+}
 
 router.isReady().then(() => {
   app.mount('#app');

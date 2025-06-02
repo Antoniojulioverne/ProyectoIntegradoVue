@@ -1,79 +1,129 @@
 <template>
-  <ion-page class="chat-page">
-    <ion-header class="chat-header">
+  <ion-page class="gs-chat-list-page">
+    <ion-header class="gs-header">
       <ion-toolbar>
         <ion-buttons slot="start"> 
            <ion-menu-button :auto-hide="false"></ion-menu-button>
         </ion-buttons>
-        <ion-title class="page-title">
-          <ion-icon name="chatbubbles" class="title-icon"></ion-icon>
-          Mis Chats
-          <div class="connection-status" :class="{ 'connected': isConnected, 'disconnected': !isConnected }">
-            <ion-icon :name="isConnected ? 'wifi' : 'wifi-outline'"></ion-icon>
+        <ion-title class="gs-page-title">
+          <div class="gs-title-content">
+            <ion-icon name="chatbubbles" class="gs-title-icon"></ion-icon>
+            <span>Mis Chats</span>
+            <div class="gs-connection-indicator" :class="connectionStatusClass">
+              <ion-icon :name="connectionIcon"></ion-icon>
+            </div>
           </div>
         </ion-title>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="chat-content">
-      <div class="chat-container">
+    <ion-content class="gs-content">
+      <div class="gs-chat-container">
         <!-- Loading state -->
-        <div v-if="loading" class="loading-state">
-          <ion-spinner name="dots"></ion-spinner>
-          <p>Cargando chats...</p>
-        </div>
-
-        <!-- Chat list -->
-        <div v-else-if="chats.length > 0" class="chat-list-wrapper">
-          <div
-            v-for="chat in chats"
-            :key="chat.chatId"
-            class="chat-item"
-            @click="abrirChat(chat)"
-          >
-            <div class="chat-avatar">
-              <ion-icon name="chatbubble-ellipses"></ion-icon>
-            </div>
-            
-            <div class="chat-info">
-              <h2 class="chat-title">{{ getOtherUserName(chat) }}</h2>
-              <p class="last-message" v-if="chat.ultimoMensaje">
-                {{ chat.ultimoMensaje.contenido }}
-              </p>
-              <p class="last-message-time" v-if="chat.ultimoMensaje">
-                {{ formatTime(chat.ultimoMensaje.fechaEnvio) }}
-              </p>
-              <p v-if="chat.mensajesNoLeidos > 0" class="unread-info">
-                {{ chat.mensajesNoLeidos }} mensajes no leídos
-              </p>
-            </div>
-            
-            <div class="chat-meta">
-              <div 
-                v-if="chat.mensajesNoLeidos > 0" 
-                class="unread-badge"
-              >
-                {{ chat.mensajesNoLeidos }}
+        <div v-if="isLoading" class="gs-loading-state">
+          <div class="gs-skeleton-container">
+            <div v-for="n in 3" :key="n" class="gs-skeleton-chat-item">
+              <div class="gs-skeleton gs-skeleton-avatar"></div>
+              <div class="gs-skeleton-content">
+                <div class="gs-skeleton gs-skeleton-line gs-skeleton-title"></div>
+                <div class="gs-skeleton gs-skeleton-line gs-skeleton-subtitle"></div>
               </div>
-              <ion-icon name="chevron-forward" class="arrow-icon"></ion-icon>
             </div>
           </div>
         </div>
 
+        <!-- Chat list -->
+        <div v-else-if="chats.length > 0" class="gs-chat-list">
+          <transition-group name="gs-chat-item" tag="div">
+            <div
+              v-for="chat in chats"
+              :key="chat.chatId"
+              class="gs-chat-item"
+              :class="{ 'gs-has-unread': chat.mensajesNoLeidos > 0 }"
+              @click="openChat(chat)"
+            >
+              <div class="gs-chat-avatar">
+                <div class="gs-avatar-circle">
+                  <ion-icon name="chatbubble-ellipses"></ion-icon>
+                </div>
+                <div v-if="chat.mensajesNoLeidos > 0" class="gs-unread-dot"></div>
+              </div>
+              
+              <div class="gs-chat-info">
+                <div class="gs-chat-header">
+                  <h3 class="gs-chat-title">{{ getChatDisplayName(chat) }}</h3>
+                  <div class="gs-chat-meta">
+                    <span v-if="chat.ultimoMensaje" class="gs-chat-time">
+                      {{ formatMessageTime(chat.ultimoMensaje.fechaEnvio) }}
+                    </span>
+                  </div>
+                </div>
+                
+                <div class="gs-chat-preview">
+                  <p v-if="chat.ultimoMensaje" class="gs-last-message">
+                    <span v-if="chat.ultimoMensaje.usuarioId === currentUserId" class="gs-message-prefix">
+                      Tú: 
+                    </span>
+                    {{ chat.ultimoMensaje.contenido }}
+                  </p>
+                  <p v-else class="gs-no-messages">
+                    No hay mensajes aún
+                  </p>
+                </div>
+              </div>
+              
+              <div class="gs-chat-actions">
+                <div 
+                  v-if="chat.mensajesNoLeidos > 0" 
+                  class="gs-unread-badge"
+                >
+                  {{ formatUnreadCount(chat.mensajesNoLeidos) }}
+                </div>
+                <ion-icon name="chevron-forward" class="gs-arrow-icon"></ion-icon>
+              </div>
+            </div>
+          </transition-group>
+        </div>
+
         <!-- Empty state -->
-        <div class="empty-state" v-else>
-          <ion-icon name="chatbubbles-outline" class="empty-icon"></ion-icon>
-          <h3 class="empty-title">No tienes chats</h3>
-          <p class="empty-description">Cuando tengas conversaciones, aparecerán aquí</p>
-          <ion-button 
-            fill="outline" 
-            color="primary" 
-            @click="mostrarModalCrearChat"
-            class="create-first-chat-btn"
-          >
-            <ion-icon name="add" slot="start"></ion-icon>
-            Crear tu primer chat
-          </ion-button>
+        <div v-else class="gs-empty-state">
+          <div class="gs-empty-content">
+            <ion-icon name="chatbubbles-outline" class="gs-empty-icon"></ion-icon>
+            <h3 class="gs-empty-title">No tienes chats</h3>
+            <p class="gs-empty-description">
+              Cuando tengas conversaciones, aparecerán aquí
+            </p>
+            <button 
+              @click="showCreateChatModal = true"
+              class="gs-button gs-button-primary"
+            >
+              <ion-icon name="add" slot="start"></ion-icon>
+              Crear tu primer chat
+            </button>
+          </div>
+        </div>
+
+        <!-- Connection status banner -->
+        <div 
+          v-if="connectionStatus.error" 
+          class="gs-connection-banner gs-connection-error"
+        >
+          <ion-icon name="wifi-outline"></ion-icon>
+          <span>{{ connectionStatus.error }}</span>
+          <button @click="handleReconnect" class="gs-button gs-button-sm gs-button-ghost">
+            Reconectar
+          </button>
+        </div>
+
+        <div 
+          v-else-if="!connectionStatus.isConnected && !connectionStatus.isConnecting" 
+          class="gs-connection-banner gs-connection-warning"
+        >
+          <ion-icon name="cloud-offline-outline"></ion-icon>
+          <span>Sin conexión en tiempo real</span>
+          <button @click="handleReconnect" class="gs-button gs-button-sm gs-button-ghost">
+            Conectar
+          </button>
         </div>
       </div>
 
@@ -81,32 +131,33 @@
       <ion-fab vertical="bottom" horizontal="end" slot="fixed">
         <ion-fab-button 
           color="primary" 
-          @click="mostrarModalCrearChat"
-          class="fab-button"
+          @click="showCreateChatModal = true"
+          class="gs-fab"
         >
           <ion-icon name="add"></ion-icon>
         </ion-fab-button>
       </ion-fab>
     </ion-content>
 
-    <!-- Modal para crear chat -->
-    <ion-modal :is-open="showCreateChatModal" @did-dismiss="cerrarModalCrearChat">
+    <!-- Create Chat Modal -->
+    <ion-modal :is-open="showCreateChatModal" @did-dismiss="closeCreateChatModal">
       <ion-header>
         <ion-toolbar>
           <ion-title>Crear Nuevo Chat</ion-title>
           <ion-buttons slot="end">
-            <ion-button @click="cerrarModalCrearChat">
+            <ion-button @click="closeCreateChatModal">
               <ion-icon name="close"></ion-icon>
             </ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
       
-      <ion-content class="modal-content">
-        <div class="modal-container">
-          <!-- Tipo de chat -->
-          <div class="chat-type-selector">
-            <ion-segment v-model="chatType" @ionChange="onChatTypeChange">
+      <ion-content class="gs-modal-content">
+        <div class="gs-modal-container">
+          <!-- Chat Type Selector -->
+          <div class="gs-form-section">
+            <label class="gs-label">Tipo de chat</label>
+            <ion-segment v-model="chatType" class="gs-segment">
               <ion-segment-button value="privado">
                 <ion-icon name="person"></ion-icon>
                 <ion-label>Chat Privado</ion-label>
@@ -118,56 +169,56 @@
             </ion-segment>
           </div>
 
-          <!-- Chat Privado -->
-          <div v-if="chatType === 'privado'" class="chat-form">
-            <ion-item>
-              <ion-label position="stacked">Usuario</ion-label>
-              <ion-input
-                v-model="selectedUserId"
-                placeholder="ID del usuario"
-                type="number"
-                :disabled="creatingChat"
-              ></ion-input>
-            </ion-item>
+          <!-- Private Chat Form -->
+          <div v-if="chatType === 'privado'" class="gs-form-section">
+            <label class="gs-label">ID del usuario</label>
+            <input
+              v-model="selectedUserId"
+              type="number"
+              class="gs-input"
+              placeholder="Ingresa el ID del usuario"
+              :disabled="isCreatingChat"
+            />
           </div>
 
-          <!-- Chat Grupal -->
-          <div v-if="chatType === 'grupal'" class="chat-form">
-            <ion-item>
-              <ion-label position="stacked">Nombre del grupo</ion-label>
-              <ion-input
-                v-model="groupName"
-                placeholder="Ingresa el nombre del grupo"
-                :disabled="creatingChat"
-              ></ion-input>
-            </ion-item>
+          <!-- Group Chat Form -->
+          <div v-if="chatType === 'grupal'" class="gs-form-section">
+            <label class="gs-label">Nombre del grupo</label>
+            <input
+              v-model="groupName"
+              type="text"
+              class="gs-input"
+              placeholder="Ingresa el nombre del grupo"
+              :disabled="isCreatingChat"
+            />
             
-            <ion-item>
-              <ion-label position="stacked">IDs de participantes (separados por comas)</ion-label>
-              <ion-input
-                v-model="participantIds"
-                placeholder="1, 2, 3"
-                :disabled="creatingChat"
-              ></ion-input>
-            </ion-item>
+            <label class="gs-label">IDs de participantes</label>
+            <input
+              v-model="participantIds"
+              type="text"
+              class="gs-input"
+              placeholder="1, 2, 3 (separados por comas)"
+              :disabled="isCreatingChat"
+            />
           </div>
 
-          <!-- Botones de acción -->
-          <div class="modal-actions">
-            <ion-button 
-              expand="full" 
-              @click="crearChat"
-              :disabled="!canCreateChat || creatingChat"
+          <!-- Actions -->
+          <div class="gs-form-actions">
+            <button 
+              @click="createChat"
+              :disabled="!canCreateChat || isCreatingChat"
+              class="gs-button gs-button-primary"
+              :class="{ 'gs-button-loading': isCreatingChat }"
             >
-              <ion-spinner v-if="creatingChat" name="dots"></ion-spinner>
+              <ion-spinner v-if="isCreatingChat" name="dots"></ion-spinner>
               <span v-else>Crear Chat</span>
-            </ion-button>
+            </button>
           </div>
         </div>
       </ion-content>
     </ion-modal>
 
-    <!-- Toast para notificaciones -->
+    <!-- Toast notifications -->
     <ion-toast
       :is-open="showToast"
       :message="toastMessage"
@@ -179,65 +230,78 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from "vue";
-import { useRouter } from "vue-router";
-import { obtenerChatsDeUsuario } from "@/services/chatApi";
-import {
-  connectGlobal,
-  disconnect,
-  isConnected as checkConnection,
-  crearChatPrivado,
-  crearChatGrupal,
-  obtenerChatsUsuario,
-  addStateChangeListener,
-  removeStateChangeListener
-} from "@/services/chatWebSocket";
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, 
   IonContent, IonIcon, IonButtons, IonMenuButton,
   IonFab, IonFabButton, IonModal, IonButton,
   IonSegment, IonSegmentButton, IonLabel,
-  IonItem, IonInput, IonSpinner, IonToast
+  IonSpinner, IonToast
 } from '@ionic/vue';
+import { useWebSocket, type ChatMessage, type ChatNotification } from '@/services/websocket/WebSocketService';
+import { useAuth } from '@/composables/useAuth';
+import { useApi } from '@/composables/useApi';
+import config from '@/config/config';
 
-interface ChatData {
+// Types
+interface Chat {
   chatId: number;
   nombreChat?: string;
   ultimoMensaje?: {
+    mensajeId: number;
+    usuarioId: number;
     contenido: string;
     fechaEnvio: string;
   };
   mensajesNoLeidos: number;
   participantes: Array<{
+    usuarioId: number;
     username: string;
-    skin?: string | null;
+    skin?: string;
   }>;
 }
 
-const storedUser = localStorage.getItem("usuario");
-const usuarioId = storedUser ? JSON.parse(storedUser).usuarioId : null;
-const currentUsername = storedUser ? JSON.parse(storedUser).username : null;
-
-// Estados reactivos
-const chats = ref<ChatData[]>([]);
-const loading = ref(true);
-const isConnected = ref(false);
+// Composables
 const router = useRouter();
+const { usuario } = useAuth();
+const { showToast: apiShowToast } = useApi();
+const {
+  connectionStatus,
+  connect,
+  disconnect,
+  reconnect,
+  isConnected
+} = useWebSocket();
 
-// Estados del modal
+// Reactive data
+const chats = ref<Chat[]>([]);
+const isLoading = ref(true);
 const showCreateChatModal = ref(false);
 const chatType = ref('privado');
 const selectedUserId = ref<number | null>(null);
 const groupName = ref('');
 const participantIds = ref('');
-const creatingChat = ref(false);
-
-// Estados del toast
+const isCreatingChat = ref(false);
 const showToast = ref(false);
 const toastMessage = ref('');
 const toastColor = ref('success');
 
 // Computed
+const currentUserId = computed(() => usuario.value?.usuarioId);
+
+const connectionStatusClass = computed(() => {
+  if (connectionStatus.isConnected) return 'gs-connected';
+  if (connectionStatus.isConnecting) return 'gs-connecting';
+  return 'gs-disconnected';
+});
+
+const connectionIcon = computed(() => {
+  if (connectionStatus.isConnected) return 'wifi';
+  if (connectionStatus.isConnecting) return 'sync';
+  return 'wifi-outline';
+});
+
 const canCreateChat = computed(() => {
   if (chatType.value === 'privado') {
     return selectedUserId.value && selectedUserId.value > 0;
@@ -246,44 +310,35 @@ const canCreateChat = computed(() => {
   }
 });
 
-// Función para actualizar el estado de conexión
-function updateConnectionStatus() {
-  isConnected.value = checkConnection();
-}
-
-// Listener para cambios de estado de WebSocket
-const stateChangeListener = () => {
-  updateConnectionStatus();
-};
-
-function getOtherUserName(chat: ChatData): string {
-  // Para chats privados (2 participantes), siempre mostrar el otro usuario
-  if (chat.participantes && chat.participantes.length === 2) {
-    const otherUser = chat.participantes.find(p => p.username !== currentUsername);
-    if (otherUser && otherUser.username) {
-      return otherUser.username;
-    }
-  }
-  
-  // Para chats grupales (más de 2 participantes), usar nombreChat si existe
-  if (chat.nombreChat && chat.nombreChat.trim()) {
+// Methods
+const getChatDisplayName = (chat: Chat): string => {
+  if (chat.nombreChat?.trim()) {
     return chat.nombreChat;
   }
   
-  // Fallback
+  if (chat.participantes && chat.participantes.length === 2) {
+    const otherUser = chat.participantes.find(p => p.usuarioId !== currentUserId.value);
+    return otherUser?.username || `Chat #${chat.chatId}`;
+  }
+  
   return `Chat #${chat.chatId}`;
-}
+};
 
-function formatTime(dateString: string): string {
+const formatMessageTime = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffHours = diffMs / (1000 * 60 * 60);
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
   
   if (diffHours < 24) {
     return date.toLocaleTimeString('es-ES', { 
       hour: '2-digit', 
       minute: '2-digit' 
+    });
+  } else if (diffDays < 7) {
+    return date.toLocaleDateString('es-ES', { 
+      weekday: 'short'
     });
   } else {
     return date.toLocaleDateString('es-ES', { 
@@ -291,123 +346,158 @@ function formatTime(dateString: string): string {
       month: '2-digit' 
     });
   }
-}
+};
 
-async function cargarChats() {
-  try {
-    loading.value = true;
-    console.log(`Cargando chats para usuario ${usuarioId}`);
-    
-    // Intentar cargar desde WebSocket si está conectado
-    if (isConnected.value) {
-      try {
-        const chatsData = await obtenerChatsUsuario(usuarioId);
-        if (Array.isArray(chatsData)) {
-          chats.value = chatsData;
-          console.log(`Cargados ${chatsData.length} chats desde WebSocket`);
-          return;
-        }
-      } catch (wsError) {
-        console.warn("Error cargando desde WebSocket, usando API REST:", wsError);
-      }
-    }
-    
-    // Fallback a API REST
-    const chatsData = await obtenerChatsDeUsuario(usuarioId);
-    if (Array.isArray(chatsData)) {
-      chats.value = chatsData;
-      console.log(`Cargados ${chatsData.length} chats desde API REST`);
-    } else {
-      console.warn("Los datos de chats no son un array:", chatsData);
-      chats.value = [];
-    }
-  } catch (error) {
-    console.error("Error cargando chats:", error);
-    chats.value = [];
-    mostrarToast("Error cargando chats", "danger");
-  } finally {
-    loading.value = false;
-  }
-}
+const formatUnreadCount = (count: number): string => {
+  return count > 99 ? '99+' : count.toString();
+};
 
-async function conectarWebSocket() {
-  try {
-    console.log("Iniciando conexión WebSocket...");
-    
-    await connectGlobal(
-      // Callback para chat creado
-      (chatInfo: any) => {
-        console.log("Nuevo chat creado:", chatInfo);
-        cargarChats(); // Recargar lista
-        mostrarToast("Nuevo chat creado", "success");
-      },
-      // Callback para lista actualizada
-      (chatsData: any[]) => {
-        console.log("Lista de chats actualizada:", chatsData);
-        if (Array.isArray(chatsData)) {
-          chats.value = chatsData;
-        }
-      }
-    );
-    
-    updateConnectionStatus();
-    console.log("WebSocket conectado exitosamente");
-    
-    // Cargar chats iniciales
-    await cargarChats();
-    
-  } catch (error) {
-    console.error("Error conectando WebSocket:", error);
-    updateConnectionStatus();
-    mostrarToast("Error de conexión", "warning");
-    
-    // Cargar chats usando API REST como fallback
-    await cargarChats();
-  }
-}
-
-function abrirChat(chat: ChatData) {
-  router.push({ 
-    name: "Chat", 
-    params: { 
-      chatId: chat.chatId.toString() 
-    }
+const openChat = (chat: Chat) => {
+  router.push({
+    name: 'Chat',
+    params: { chatId: chat.chatId.toString() }
   });
-}
+};
 
-// Funciones del modal
-function mostrarModalCrearChat() {
-  showCreateChatModal.value = true;
-}
+const handleReconnect = async () => {
+  if (!currentUserId.value) return;
+  
+  try {
+    await reconnect();
+    showToastMessage('Reconectando...', 'warning');
+  } catch (error) {
+    showToastMessage('Error al reconectar', 'danger');
+  }
+};
 
-function cerrarModalCrearChat() {
+const loadChatsFromAPI = async () => {
+  if (!currentUserId.value) return;
+  
+  try {
+    const response = await fetch(`${config.api.fullApiUrl}/chat/usuario/${currentUserId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const chatsData = await response.json();
+      chats.value = chatsData;
+      console.log('📋 Chats cargados desde API:', chatsData.length);
+    }
+  } catch (error) {
+    console.error('❌ Error cargando chats desde API:', error);
+    showToastMessage('Error cargando chats', 'danger');
+  }
+};
+
+const setupWebSocketConnection = async () => {
+  if (!currentUserId.value) return;
+
+  try {
+    console.log('🔌 Configurando conexión WebSocket para lista de chats...');
+    
+    const success = await connect(currentUserId.value, {
+      onMessage: handleGlobalMessage,
+      onChatNotification: handleChatNotification,
+      onChatListUpdate: handleChatListUpdate,
+      onConnectionChange: (status) => {
+        console.log('🔄 Estado de conexión:', status);
+      }
+    });
+    
+    if (success) {
+      console.log('✅ WebSocket conectado para lista de chats');
+    } else {
+      console.warn('⚠️ No se pudo conectar WebSocket, usando API REST');
+      await loadChatsFromAPI();
+    }
+  } catch (error) {
+    console.error('❌ Error conectando WebSocket:', error);
+    await loadChatsFromAPI();
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// WebSocket Event Handlers
+const handleGlobalMessage = (message: ChatMessage) => {
+  console.log('📨 Mensaje global recibido:', message);
+  
+  // Actualizar último mensaje en la lista de chats
+  const chatIndex = chats.value.findIndex(chat => chat.chatId === message.chatId);
+  if (chatIndex !== -1) {
+    const chat = chats.value[chatIndex];
+    
+    // Actualizar último mensaje
+    chat.ultimoMensaje = {
+      mensajeId: message.mensajeId,
+      usuarioId: message.usuarioId,
+      contenido: message.contenido,
+      fechaEnvio: message.fechaEnvio
+    };
+    
+    // Incrementar contador de no leídos si el mensaje no es del usuario actual
+    if (message.usuarioId !== currentUserId.value) {
+      chat.mensajesNoLeidos++;
+    }
+    
+    // Mover chat al principio de la lista
+    const updatedChat = chats.value.splice(chatIndex, 1)[0];
+    chats.value.unshift(updatedChat);
+  }
+};
+
+const handleChatNotification = (notification: ChatNotification) => {
+  console.log('🔔 Notificación de chat:', notification);
+  
+  // Mostrar notificación toast si la app no está en primer plano
+  if (document.hidden) {
+    showToastMessage(
+      `${notification.remitenteNombre}: ${notification.contenidoPreview}`,
+      'primary'
+    );
+  }
+};
+
+const handleChatListUpdate = (updatedChats: Chat[]) => {
+  console.log('📋 Lista de chats actualizada:', updatedChats.length);
+  chats.value = updatedChats;
+};
+
+// Modal Methods
+const closeCreateChatModal = () => {
   showCreateChatModal.value = false;
-  resetFormulario();
-}
+  resetCreateChatForm();
+};
 
-function resetFormulario() {
+const resetCreateChatForm = () => {
   chatType.value = 'privado';
   selectedUserId.value = null;
   groupName.value = '';
   participantIds.value = '';
-  creatingChat.value = false;
-}
+  isCreatingChat.value = false;
+};
 
-function onChatTypeChange() {
-  resetFormulario();
-  chatType.value = chatType.value; // Mantener el tipo seleccionado
-}
-
-async function crearChat() {
-  if (!canCreateChat.value || creatingChat.value) return;
+const createChat = async () => {
+  if (!canCreateChat.value || isCreatingChat.value) return;
   
-  creatingChat.value = true;
+  isCreatingChat.value = true;
   
   try {
+    const endpoint = `${config.api.fullApiUrl}/chat/privado`;
+    const headers = {
+      'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
+      'Content-Type': 'application/json'
+    };
+    
+    let body;
     if (chatType.value === 'privado') {
-      const chatData = await crearChatPrivado(usuarioId, selectedUserId.value!);
-      console.log("Chat privado creado:", chatData);
-      mostrarToast("Chat privado creado exitosamente", "success");
+      body = {
+        usuario1Id: currentUserId.value,
+        usuario2Id: selectedUserId.value
+      };
     } else {
       const participantsList = participantIds.value
         .split(',')
@@ -415,369 +505,441 @@ async function crearChat() {
         .filter(id => !isNaN(id));
       
       if (participantsList.length === 0) {
-        mostrarToast("IDs de participantes inválidos", "danger");
+        showToastMessage('IDs de participantes inválidos', 'danger');
         return;
       }
       
-      const chatData = await crearChatGrupal(groupName.value.trim(), participantsList);
-      console.log("Chat grupal creado:", chatData);
-      mostrarToast("Chat grupal creado exitosamente", "success");
+      body = {
+        nombreChat: groupName.value.trim(),
+        participantesIds: participantsList
+      };
     }
     
-    cerrarModalCrearChat();
-    // Los chats se actualizarán automáticamente vía WebSocket
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    
+    if (response.ok) {
+      const newChat = await response.json();
+      console.log('✅ Chat creado:', newChat);
+      showToastMessage('Chat creado exitosamente', 'success');
+      closeCreateChatModal();
+      
+      // El WebSocket debería actualizar la lista automáticamente
+      // pero como fallback, recargamos la lista
+      if (!isConnected()) {
+        await loadChatsFromAPI();
+      }
+    } else {
+      const errorText = await response.text();
+      showToastMessage(errorText || 'Error creando el chat', 'danger');
+    }
     
   } catch (error) {
-    console.error("Error creando chat:", error);
-    mostrarToast("Error creando el chat", "danger");
+    console.error('❌ Error creando chat:', error);
+    showToastMessage('Error creando el chat', 'danger');
   } finally {
-    creatingChat.value = false;
+    isCreatingChat.value = false;
   }
-}
+};
 
-function mostrarToast(mensaje: string, color: string = 'success') {
-  toastMessage.value = mensaje;
+const showToastMessage = (message: string, color: string = 'success') => {
+  toastMessage.value = message;
   toastColor.value = color;
   showToast.value = true;
-}
+};
 
+// Lifecycle
 onMounted(async () => {
-  console.log("Componente ChatList montado");
+  console.log('📱 ChatListView montado');
   
-  // Agregar listener para cambios de estado
-  addStateChangeListener(stateChangeListener);
+  if (!currentUserId.value) {
+    showToastMessage('Usuario no autenticado', 'danger');
+    router.push('/');
+    return;
+  }
   
-  // Conectar WebSocket
-  await conectarWebSocket();
+  await setupWebSocketConnection();
 });
 
 onUnmounted(() => {
-  console.log("Componente ChatList desmontado");
-  
-  // Remover listener
-  removeStateChangeListener(stateChangeListener);
-  
-  // No desconectar WebSocket aquí ya que puede ser usado por otros componentes
-  // disconnect();
+  console.log('📱 ChatListView desmontado');
+  // No desconectamos el WebSocket aquí porque puede ser usado por otros componentes
 });
 </script>
 
 <style scoped>
-/* FORZAR el fondo en todos los niveles */
-.chat-page {
-  --ion-background-color: #1a1a2e !important;
-  background: #1a1a2e !important;
+/* ===== CHAT LIST STYLES ===== */
+
+.gs-chat-list-page {
+  --ion-background-color: var(--gs-bg-primary);
 }
 
-.chat-header {
-  --ion-background-color: #16213e !important;
-  background: #16213e !important;
-  border-bottom: 1px solid #2a3441;
+.gs-header {
+  --background: var(--gs-bg-secondary);
+  border-bottom: 1px solid var(--gs-border-primary);
 }
 
-.chat-content {
-  --ion-background-color: #1a1a2e !important;
-  background: #1a1a2e !important;
-}
-
-.chat-container {
-  background: #1a1a2e !important;
-  min-height: 100vh;
-  padding: 16px;
-  padding-bottom: 80px; /* Espacio para el FAB */
-}
-
-.page-title {
+.gs-page-title {
   display: flex;
   align-items: center;
-  font-weight: 600;
-  color: #4facfe;
-  position: relative;
+  font-weight: var(--gs-font-semibold);
+  color: var(--gs-text-primary);
 }
 
-.title-icon {
-  margin-right: 8px;
-  font-size: 1.2rem;
+.gs-title-content {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-sm);
+  width: 100%;
 }
 
-.connection-status {
-  position: absolute;
-  right: -40px;
-  top: 50%;
-  transform: translateY(-50%);
-  transition: all 0.3s ease;
+.gs-title-icon {
+  font-size: 1.25rem;
+  color: var(--gs-primary-500);
 }
 
-.connection-status.connected {
-  color: #4caf50;
+.gs-connection-indicator {
+  margin-left: auto;
+  padding: var(--gs-space-xs);
+  border-radius: var(--gs-radius-full);
+  transition: all var(--gs-transition-fast);
 }
 
-.connection-status.disconnected {
-  color: #f44336;
-  animation: blink 1s infinite;
+.gs-connection-indicator.gs-connected {
+  color: var(--gs-secondary-500);
 }
 
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0.3; }
+.gs-connection-indicator.gs-connecting {
+  color: var(--gs-warning-500);
+  animation: gs-pulse 1s infinite;
 }
 
-.loading-state {
+.gs-connection-indicator.gs-disconnected {
+  color: var(--gs-error-500);
+}
+
+@keyframes gs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.gs-content {
+  --background: var(--gs-bg-primary);
+  --padding-bottom: 80px;
+}
+
+.gs-chat-container {
+  padding: var(--gs-space-md);
+  min-height: 100%;
+}
+
+/* === LOADING STATES === */
+
+.gs-loading-state {
+  padding: var(--gs-space-lg) 0;
+}
+
+.gs-skeleton-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 50vh;
-  color: #8a8a8a;
+  gap: var(--gs-space-md);
 }
 
-.loading-state ion-spinner {
-  margin-bottom: 16px;
-}
-
-.chat-list-wrapper {
-  background: transparent;
-}
-
-.chat-item {
-  background: #16213e;
-  border: 1px solid #2a3441;
-  border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 12px;
+.gs-skeleton-chat-item {
   display: flex;
   align-items: center;
+  gap: var(--gs-space-md);
+  padding: var(--gs-space-md);
+  background: var(--gs-bg-secondary);
+  border-radius: var(--gs-radius-lg);
+}
+
+.gs-skeleton-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--gs-radius-full);
+}
+
+.gs-skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gs-space-sm);
+}
+
+.gs-skeleton-line {
+  height: 16px;
+  border-radius: var(--gs-radius-sm);
+}
+
+.gs-skeleton-title {
+  width: 60%;
+}
+
+.gs-skeleton-subtitle {
+  width: 80%;
+}
+
+/* === CHAT LIST === */
+
+.gs-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gs-space-sm);
+}
+
+.gs-chat-item {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-md);
+  padding: var(--gs-space-md);
+  background: var(--gs-bg-secondary);
+  border: 1px solid var(--gs-border-primary);
+  border-radius: var(--gs-radius-lg);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--gs-transition-normal);
   position: relative;
   overflow: hidden;
 }
 
-.chat-item::before {
+.gs-chat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--gs-shadow-md);
+  border-color: var(--gs-primary-200);
+}
+
+.gs-chat-item.gs-has-unread {
+  border-color: var(--gs-primary-300);
+  background: linear-gradient(135deg, var(--gs-bg-secondary) 0%, var(--gs-primary-50) 100%);
+}
+
+.gs-chat-item::before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(to bottom, #4facfe, #00f2fe);
+  background: var(--gs-primary-500);
   transform: scaleY(0);
-  transition: transform 0.3s ease;
+  transition: transform var(--gs-transition-normal);
   transform-origin: bottom;
 }
 
-.chat-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(79, 172, 254, 0.2);
-  border-color: rgba(79, 172, 254, 0.4);
-}
-
-.chat-item:hover::before {
+.gs-chat-item:hover::before {
   transform: scaleY(1);
 }
 
-.chat-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
+.gs-chat-item.gs-has-unread::before {
+  transform: scaleY(1);
+  background: var(--gs-primary-600);
+}
+
+/* === CHAT AVATAR === */
+
+.gs-chat-avatar {
+  position: relative;
   flex-shrink: 0;
 }
 
-.chat-avatar ion-icon {
+.gs-avatar-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--gs-radius-full);
+  background: linear-gradient(135deg, var(--gs-primary-500), var(--gs-primary-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
-  font-size: 24px;
+  font-size: 20px;
+  box-shadow: var(--gs-shadow-sm);
 }
 
-.chat-info {
+.gs-unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  background: var(--gs-error-500);
+  border-radius: var(--gs-radius-full);
+  border: 2px solid var(--gs-bg-secondary);
+  animation: gs-pulse 2s infinite;
+}
+
+/* === CHAT INFO === */
+
+.gs-chat-info {
   flex: 1;
   min-width: 0;
 }
 
-.chat-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #e4e6ea;
-  margin: 0 0 4px 0;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.gs-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--gs-space-xs);
 }
 
-.last-message {
-  font-size: 0.9rem;
-  color: #8a8a8a;
-  margin: 0 0 2px 0;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.last-message-time {
-  font-size: 0.75rem;
-  color: #666;
-  margin: 0 0 4px 0;
-}
-
-.unread-info {
-  font-size: 0.8rem;
-  color: #4facfe;
+.gs-chat-title {
+  font-size: var(--gs-text-lg);
+  font-weight: var(--gs-font-semibold);
+  color: var(--gs-text-primary);
   margin: 0;
-  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: var(--gs-space-sm);
 }
 
-.chat-meta {
+.gs-chat-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-xs);
+}
+
+.gs-chat-time {
+  font-size: var(--gs-text-xs);
+  color: var(--gs-text-tertiary);
+  white-space: nowrap;
+}
+
+.gs-chat-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-xs);
+}
+
+.gs-last-message,
+.gs-no-messages {
+  font-size: var(--gs-text-sm);
+  color: var(--gs-text-secondary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.gs-no-messages {
+  font-style: italic;
+  color: var(--gs-text-tertiary);
+}
+
+.gs-message-prefix {
+  font-weight: var(--gs-font-medium);
+  color: var(--gs-text-tertiary);
+}
+
+/* === CHAT ACTIONS === */
+
+.gs-chat-actions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--gs-space-sm);
+  flex-shrink: 0;
 }
 
-.unread-badge {
-  background: #4facfe;
+.gs-unread-badge {
+  background: var(--gs-primary-500);
   color: white;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 12px;
-  min-width: 24px;
-  height: 24px;
+  font-size: var(--gs-text-xs);
+  font-weight: var(--gs-font-semibold);
+  padding: var(--gs-space-xs) var(--gs-space-sm);
+  border-radius: var(--gs-radius-full);
+  min-width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: pulse 2s infinite;
+  animation: gs-pulse 2s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.arrow-icon {
-  color: #8a8a8a;
+.gs-arrow-icon {
+  color: var(--gs-text-tertiary);
   font-size: 16px;
-  transition: all 0.3s ease;
+  transition: all var(--gs-transition-fast);
 }
 
-.chat-item:hover .arrow-icon {
-  color: #4facfe;
+.gs-chat-item:hover .gs-arrow-icon {
+  color: var(--gs-primary-500);
   transform: translateX(4px);
 }
 
-.empty-state {
+/* === EMPTY STATE === */
+
+.gs-empty-state {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 60vh;
+  min-height: 60vh;
   text-align: center;
+  padding: var(--gs-space-2xl);
 }
 
-.empty-icon {
-  font-size: 64px;
-  color: #8a8a8a;
-  margin-bottom: 16px;
+.gs-empty-content {
+  max-width: 300px;
+}
+
+.gs-empty-icon {
+  font-size: 4rem;
+  color: var(--gs-text-tertiary);
+  margin-bottom: var(--gs-space-lg);
   opacity: 0.6;
 }
 
-.empty-title {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #e4e6ea;
-  margin: 0 0 8px 0;
+.gs-empty-title {
+  font-size: var(--gs-text-xl);
+  font-weight: var(--gs-font-semibold);
+  color: var(--gs-text-primary);
+  margin: 0 0 var(--gs-space-sm) 0;
 }
 
-.empty-description {
-  font-size: 1rem;
-  color: #8a8a8a;
-  margin: 0 0 24px 0;
-  line-height: 1.5;
+.gs-empty-description {
+  font-size: var(--gs-text-base);
+  color: var(--gs-text-secondary);
+  margin: 0 0 var(--gs-space-xl) 0;
+  line-height: var(--gs-leading-relaxed);
 }
 
-.create-first-chat-btn {
-  --color: #4facfe;
-  --border-color: #4facfe;
+/* === CONNECTION BANNER === */
+
+.gs-connection-banner {
+  position: fixed;
+  top: calc(var(--ion-safe-area-top) + 60px);
+  left: var(--gs-space-md);
+  right: var(--gs-space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-sm);
+  padding: var(--gs-space-sm) var(--gs-space-md);
+  border-radius: var(--gs-radius-lg);
+  font-size: var(--gs-text-sm);
+  font-weight: var(--gs-font-medium);
+  z-index: var(--gs-z-overlay);
+  animation: gs-slide-down 0.3s ease-out;
+  box-shadow: var(--gs-shadow-lg);
 }
 
-.fab-button {
-  --background: linear-gradient(135deg, #4facfe, #00f2fe);
-  --box-shadow: 0 4px 16px rgba(79, 172, 254, 0.4);
-  transition: all 0.3s ease;
+.gs-connection-banner.gs-connection-error {
+  background: var(--gs-error-500);
+  color: white;
 }
 
-.fab-button:hover {
-  --box-shadow: 0 6px 20px rgba(79, 172, 254, 0.6);
-  transform: translateY(-2px);
+.gs-connection-banner.gs-connection-warning {
+  background: var(--gs-warning-500);
+  color: white;
 }
 
-/* Modal styles */
-.modal-content {
-  --ion-background-color: #1a1a2e;
-}
-
-.modal-container {
-  padding: 20px;
-}
-
-.chat-type-selector {
-  margin-bottom: 24px;
-}
-
-.chat-type-selector ion-segment {
-  --background: #16213e;
-}
-
-.chat-type-selector ion-segment-button {
-  --color: #8a8a8a;
-  --color-checked: #4facfe;
-  --indicator-color: #4facfe;
-}
-
-.chat-form {
-  margin-bottom: 24px;
-}
-
-.chat-form ion-item {
-  --background: #16213e;
-  --color: #e4e6ea;
-  margin-bottom: 16px;
-  border-radius: 8px;
-}
-
-.chat-form ion-label {
-  --color: #4facfe !important;
-}
-
-.chat-form ion-input {
-  --color: #e4e6ea;
-  --placeholder-color: #8a8a8a;
-}
-
-.modal-actions {
-  margin-top: 32px;
-}
-
-.modal-actions ion-button {
-  --background: linear-gradient(135deg, #4facfe, #00f2fe);
-  height: 48px;
-}
-
-.modal-actions ion-button[disabled] {
-  --background: #2a3441;
-  --color: #666;
-}
-
-/* Animaciones de entrada */
-@keyframes fadeInUp {
+@keyframes gs-slide-down {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(-100%);
   }
   to {
     opacity: 1;
@@ -785,42 +947,120 @@ onUnmounted(() => {
   }
 }
 
-.chat-item {
-  animation: fadeInUp 0.4s ease forwards;
+/* === FAB === */
+
+.gs-fab {
+  --background: var(--gs-primary-500);
+  --box-shadow: var(--gs-shadow-lg);
+  transition: all var(--gs-transition-normal);
 }
 
-.chat-item:nth-child(1) { animation-delay: 0.1s; opacity: 0; }
-.chat-item:nth-child(2) { animation-delay: 0.2s; opacity: 0; }
-.chat-item:nth-child(3) { animation-delay: 0.3s; opacity: 0; }
-.chat-item:nth-child(4) { animation-delay: 0.4s; opacity: 0; }
-.chat-item:nth-child(5) { animation-delay: 0.5s; opacity: 0; }
+.gs-fab:hover {
+  --background: var(--gs-primary-600);
+  transform: translateY(-2px);
+  --box-shadow: var(--gs-shadow-xl);
+}
 
-/* Responsive */
+/* === MODAL STYLES === */
+
+.gs-modal-content {
+  --background: var(--gs-bg-primary);
+}
+
+.gs-modal-container {
+  padding: var(--gs-space-xl);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.gs-form-section {
+  margin-bottom: var(--gs-space-xl);
+}
+
+.gs-label {
+  display: block;
+  font-size: var(--gs-text-sm);
+  font-weight: var(--gs-font-medium);
+  color: var(--gs-text-primary);
+  margin-bottom: var(--gs-space-sm);
+}
+
+.gs-segment {
+  --background: var(--gs-bg-tertiary);
+  border-radius: var(--gs-radius-lg);
+  margin-bottom: var(--gs-space-lg);
+}
+
+.gs-form-actions {
+  margin-top: var(--gs-space-2xl);
+}
+
+.gs-button-loading {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* === ANIMATIONS === */
+
+.gs-chat-item-enter-active,
+.gs-chat-item-leave-active {
+  transition: all 0.3s ease;
+}
+
+.gs-chat-item-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.gs-chat-item-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.gs-chat-item-move {
+  transition: transform 0.3s ease;
+}
+
+/* === RESPONSIVE === */
+
 @media (max-width: 768px) {
-  .chat-container {
-    padding: 12px;
-    padding-bottom: 80px;
+  .gs-chat-container {
+    padding: var(--gs-space-sm);
   }
   
-  .chat-item {
-    padding: 12px;
+  .gs-chat-item {
+    padding: var(--gs-space-sm);
   }
   
-  .chat-avatar {
+  .gs-avatar-circle {
     width: 40px;
     height: 40px;
+    font-size: 18px;
   }
   
-  .chat-avatar ion-icon {
-    font-size: 20px;
+  .gs-chat-title {
+    font-size: var(--gs-text-base);
   }
   
-  .chat-title {
-    font-size: 1rem;
+  .gs-last-message {
+    font-size: var(--gs-text-xs);
   }
   
-  .last-message {
-    font-size: 0.85rem;
+  .gs-connection-banner {
+    left: var(--gs-space-sm);
+    right: var(--gs-space-sm);
+  }
+  
+  .gs-modal-container {
+    padding: var(--gs-space-lg);
+  }
+}
+
+/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  .gs-chat-item.gs-has-unread {
+    background: linear-gradient(135deg, var(--gs-bg-secondary) 0%, var(--gs-primary-900) 100%);
   }
 }
 </style>
