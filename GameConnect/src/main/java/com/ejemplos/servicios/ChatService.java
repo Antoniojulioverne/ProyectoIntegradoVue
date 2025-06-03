@@ -1,6 +1,8 @@
 package com.ejemplos.servicios;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -261,7 +263,9 @@ public class ChatService {
         return Optional.empty();
     }
     
-    // NUEVO: Métodos adicionales para gestión de grupos
+    /**
+     * Método mejorado para agregar participante con validaciones adicionales
+     */
     public void agregarParticipanteAGrupo(Long chatId, Long usuarioId, Long adminId) {
         Chat chat = chatRepositorio.findById(chatId).orElseThrow(
             () -> new RuntimeException("Chat no encontrado")
@@ -276,7 +280,7 @@ public class ChatService {
             .findByChatChatIdAndUsuarioUsuarioId(chatId, adminId)
             .orElseThrow(() -> new RuntimeException("Administrador no encontrado"));
         
-        if (!admin.getEsAdmin()) {
+        if (admin.getEsAdmin() == null || !admin.getEsAdmin()) {
             throw new RuntimeException("Solo los administradores pueden agregar participantes");
         }
         
@@ -289,12 +293,18 @@ public class ChatService {
             () -> new RuntimeException("Usuario no encontrado")
         );
         
+        // Verificar que el usuario esté verificado
+        if (!usuario.isEmailVerificado()) {
+            throw new RuntimeException("Solo usuarios verificados pueden ser agregados al grupo");
+        }
+        
         chatParticipanteRepositorio.save(ChatParticipante.builder()
             .chat(chat)
             .usuario(usuario)
             .esAdmin(false)
             .build());
     }
+    
     
     public void removerParticipanteDeGrupo(Long chatId, Long usuarioId, Long adminId) {
         Chat chat = chatRepositorio.findById(chatId).orElseThrow(
@@ -310,8 +320,13 @@ public class ChatService {
             .findByChatChatIdAndUsuarioUsuarioId(chatId, adminId)
             .orElseThrow(() -> new RuntimeException("Administrador no encontrado"));
         
-        if (!admin.getEsAdmin()) {
+        if (admin.getEsAdmin() == null || !admin.getEsAdmin()) {
             throw new RuntimeException("Solo los administradores pueden remover participantes");
+        }
+        
+        // No permitir auto-remoción
+        if (usuarioId.equals(adminId)) {
+            throw new RuntimeException("No puedes removerte a ti mismo. Usa la función 'Salir del grupo'");
         }
         
         ChatParticipante participante = chatParticipanteRepositorio
@@ -320,4 +335,179 @@ public class ChatService {
         
         chatParticipanteRepositorio.delete(participante);
     }
+    
+    
+    /**
+     * Actualiza el nombre de un grupo
+     */
+    public void actualizarNombreGrupo(Long chatId, String nuevoNombre) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        if (chat.getTipo() != TipoChat.GRUPO) {
+            throw new RuntimeException("Solo se puede cambiar el nombre de grupos");
+        }
+        
+        if (nuevoNombre == null || nuevoNombre.trim().isEmpty()) {
+            throw new RuntimeException("El nombre del grupo no puede estar vacío");
+        }
+        
+        if (nuevoNombre.trim().length() > 50) {
+            throw new RuntimeException("El nombre del grupo no puede exceder 50 caracteres");
+        }
+        
+        chat.setNombreChat(nuevoNombre.trim());
+        chatRepositorio.save(chat);
+    }
+    
+    /**
+     * Promueve un usuario a administrador
+     */
+    public void promoverAAdmin(Long chatId, Long usuarioId) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        if (chat.getTipo() != TipoChat.GRUPO) {
+            throw new RuntimeException("Solo se pueden promover administradores en grupos");
+        }
+        
+        ChatParticipante participante = chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, usuarioId)
+            .orElseThrow(() -> new RuntimeException("El usuario no es participante del grupo"));
+        
+        if (participante.getEsAdmin()) {
+            throw new RuntimeException("El usuario ya es administrador");
+        }
+        
+        participante.setEsAdmin(true);
+        chatParticipanteRepositorio.save(participante);
+    }
+    
+    /**
+     * Permite que un usuario salga del grupo por sí mismo
+     */
+    public void salirDelGrupo(Long chatId, Long usuarioId) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        if (chat.getTipo() != TipoChat.GRUPO) {
+            throw new RuntimeException("Solo se puede salir de grupos");
+        }
+        
+        ChatParticipante participante = chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, usuarioId)
+            .orElseThrow(() -> new RuntimeException("El usuario no es participante del grupo"));
+        
+        // Verificar si es el último administrador
+        long totalAdmins = chatParticipanteRepositorio.findByChatChatId(chatId).stream()
+            .filter(p -> p.getEsAdmin() != null && p.getEsAdmin())
+            .count();
+        
+        if (participante.getEsAdmin() && totalAdmins == 1) {
+            // Si es el último admin, promover a otro usuario
+            List<ChatParticipante> otrosParticipantes = chatParticipanteRepositorio.findByChatChatId(chatId)
+                .stream()
+                .filter(p -> !p.getUsuario().getUsuarioId().equals(usuarioId))
+                .collect(Collectors.toList());
+            
+            if (!otrosParticipantes.isEmpty()) {
+                // Promover al primer participante encontrado
+                ChatParticipante nuevoAdmin = otrosParticipantes.get(0);
+                nuevoAdmin.setEsAdmin(true);
+                chatParticipanteRepositorio.save(nuevoAdmin);
+            }
+        }
+        
+        chatParticipanteRepositorio.delete(participante);
+        
+        // Si no quedan participantes, eliminar el chat
+        long participantesRestantes = chatParticipanteRepositorio.findByChatChatId(chatId).size();
+        if (participantesRestantes == 0) {
+            chatRepositorio.delete(chat);
+        }
+    }
+    
+    /**
+     * Obtiene la lista de IDs de usuarios que son administradores
+     */
+    public List<Long> obtenerAdministradores(Long chatId) {
+        return chatParticipanteRepositorio.findByChatChatId(chatId).stream()
+            .filter(p -> p.getEsAdmin() != null && p.getEsAdmin())
+            .map(p -> p.getUsuario().getUsuarioId())
+            .collect(Collectors.toList());
+    }
+    /**
+     * Verifica si un usuario es administrador del chat
+     */
+    public boolean esAdministrador(Long chatId, Long usuarioId) {
+        return chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, usuarioId)
+            .map(p -> p.getEsAdmin() != null && p.getEsAdmin())
+            .orElse(false);
+    }
+    
+    /**
+     * Obtiene participantes con información detallada incluyendo si son admin
+     */
+    public List<Map<String, Object>> obtenerParticipantesDetallado(Long chatId) {
+        List<ChatParticipante> participantes = chatParticipanteRepositorio.findByChatChatId(chatId);
+        
+        return participantes.stream()
+            .map(p -> {
+                Map<String, Object> participanteInfo = new HashMap<>();
+                participanteInfo.put("usuarioId", p.getUsuario().getUsuarioId());
+                participanteInfo.put("username", p.getUsuario().getUsername());
+                participanteInfo.put("email", p.getUsuario().getEmail());
+                participanteInfo.put("skin", p.getUsuario().getSkin());
+                participanteInfo.put("esAdmin", p.getEsAdmin() != null && p.getEsAdmin());
+                participanteInfo.put("fechaUnion", p.getFechaUnion());
+                return participanteInfo;
+            })
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtiene información general del chat para debugging
+     */
+    public Map<String, Object> obtenerInfoGeneralChat(Long chatId) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        List<ChatParticipante> participantes = chatParticipanteRepositorio.findByChatChatId(chatId);
+        
+        Map<String, Object> info = new HashMap<>();
+        info.put("chatId", chat.getChatId());
+        info.put("nombreChat", chat.getNombreChat());
+        info.put("tipo", chat.getTipo().toString());
+        info.put("fechaCreacion", chat.getFechaCreacion());
+        info.put("totalParticipantes", participantes.size());
+        info.put("totalAdministradores", participantes.stream()
+            .filter(p -> p.getEsAdmin() != null && p.getEsAdmin())
+            .count());
+        
+        // Lista de administradores
+        List<String> admins = participantes.stream()
+            .filter(p -> p.getEsAdmin() != null && p.getEsAdmin())
+            .map(p -> p.getUsuario().getUsername())
+            .collect(Collectors.toList());
+        info.put("administradores", admins);
+        
+        // Lista de todos los participantes
+        List<String> todosParticipantes = participantes.stream()
+            .map(p -> p.getUsuario().getUsername())
+            .collect(Collectors.toList());
+        info.put("participantes", todosParticipantes);
+        
+        return info;
+    } 
+    
+    
+    
+    
+    
+    
 }

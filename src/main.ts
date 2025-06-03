@@ -81,6 +81,8 @@ import {
   sync,
   cloudOfflineOutline,
   addCircleOutline,
+  ellipsisVertical,
+  exit,
 
 } from 'ionicons/icons';
 
@@ -88,6 +90,8 @@ import { addIcons } from 'ionicons';
 
 // Registrar todos los iconos
 addIcons({
+  exit,
+  'ellipsis-vertical':ellipsisVertical,
   send,
   add,
   checkmark,
