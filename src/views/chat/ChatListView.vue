@@ -79,6 +79,16 @@
                 >
                   {{ formatUnreadCount(chat.mensajesNoLeidos) }}
                 </div>
+                <!-- Botón de opciones para grupos -->
+                <ion-button 
+                  v-if="isGroupChat(chat)"
+                  @click.stop="openGroupOptions(chat)"
+                  fill="clear" 
+                  size="small"
+                  class="group-options-btn"
+                >
+                  <ion-icon name="ellipsis-vertical"></ion-icon>
+                </ion-button>
                 <ion-icon name="chevron-forward" class="gs-arrow-icon"></ion-icon>
               </div>
             </div>
@@ -139,11 +149,21 @@
       </ion-fab>
     </ion-content>
 
-    <!-- Create Chat Modal Integrado -->
+    <!-- Create Chat Modal -->
     <CreateChatModal
       :is-open="showCreateChatModal"
       @close="handleCloseCreateChatModal"
       @chat-created="handleChatCreated"
+    />
+
+    <!-- Group Options Modal -->
+    <GroupOptionsModal
+      :is-open="showGroupOptionsModal"
+      :chat="selectedChat"
+      :current-user-id="currentUserId"
+      @close="closeGroupOptions"
+      @leave-group="handleLeaveGroup"
+      @update-group="handleUpdateGroup"
     />
 
     <!-- Toast notifications -->
@@ -158,11 +178,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, 
-  IonContent, IonIcon, IonButtons, IonMenuButton,
+  IonContent, IonIcon, IonButtons, IonMenuButton, IonButton,
   IonFab, IonFabButton, IonToast
 } from '@ionic/vue';
 import { useWebSocket, type ChatMessage, type ChatNotification } from '@/services/websocket/WebSocketService';
@@ -170,11 +190,13 @@ import { useAuth } from '@/composables/useAuth';
 import { useApi } from '@/composables/useApi';
 import config from '@/config/config';
 import CreateChatModal from '@/views/chat/CreateChatModal.vue';
+import GroupOptionsModal from '@/views/chat/GroupOptionsModal.vue';
 
 // Types
 interface Chat {
   chatId: number;
   nombreChat?: string;
+  tipo: string;
   ultimoMensaje?: {
     mensajeId: number;
     usuarioId: number;
@@ -205,6 +227,8 @@ const {
 const chats = ref<Chat[]>([]);
 const isLoading = ref(true);
 const showCreateChatModal = ref(false);
+const showGroupOptionsModal = ref(false);
+const selectedChat = ref<Chat | null>(null);
 const showToast = ref(false);
 const toastMessage = ref('');
 const toastColor = ref('success');
@@ -226,17 +250,16 @@ const connectionIcon = computed(() => {
 
 // Methods
 const getChatDisplayName = (chat: Chat): string => {
-  // Para chats grupales, usar nombreChat si existe
-  if (chat.nombreChat?.trim() && chat.participantes && chat.participantes.length > 2) {
-    return chat.nombreChat;
+  // 🔧 CORREGIDO: Lógica mejorada para nombres de chat
+  
+  // Si es un grupo (tipo GRUPO), SIEMPRE mostrar nombreChat
+  if (chat.tipo === 'GRUPO') {
+    return chat.nombreChat?.trim() || `Grupo #${chat.chatId}`;
   }
   
-  // Para chats privados (2 participantes), mostrar solo el otro usuario
-  if (chat.participantes && chat.participantes.length === 2) {
-    // Obtener el username del usuario actual
+  // Si es privado (tipo PRIVADO), mostrar el otro usuario
+  if (chat.tipo === 'PRIVADO' && chat.participantes && chat.participantes.length === 2) {
     const currentUsername = usuario.value?.username;
-    
-    // Encontrar el otro usuario
     const otherUser = chat.participantes.find(p => p.username !== currentUsername);
     
     if (otherUser && otherUser.username) {
@@ -244,8 +267,12 @@ const getChatDisplayName = (chat: Chat): string => {
     }
   }
   
-  // Fallback para casos edge
+  // Fallback
   return chat.nombreChat?.trim() || `Chat #${chat.chatId}`;
+};
+
+const isGroupChat = (chat: Chat): boolean => {
+  return chat.tipo === 'GRUPO';
 };
 
 const formatMessageTime = (dateString: string): string => {
@@ -283,6 +310,50 @@ const openChat = (chat: Chat) => {
   });
 };
 
+const openGroupOptions = (chat: Chat) => {
+  selectedChat.value = chat;
+  showGroupOptionsModal.value = true;
+};
+
+const closeGroupOptions = () => {
+  showGroupOptionsModal.value = false;
+  selectedChat.value = null;
+};
+
+const handleLeaveGroup = async (chatId: number) => {
+  try {
+    const response = await fetch(
+      `${config.api.fullApiUrl}/chat/${chatId}/participantes/${currentUserId.value}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.ok) {
+      showToastMessage('Has salido del grupo', 'success');
+      // Recargar lista de chats
+      await refreshChatList();
+    } else {
+      showToastMessage('Error al salir del grupo', 'danger');
+    }
+  } catch (error) {
+    console.error('Error saliendo del grupo:', error);
+    showToastMessage('Error de conexión', 'danger');
+  } finally {
+    closeGroupOptions();
+  }
+};
+
+const handleUpdateGroup = () => {
+  // Recargar lista después de actualizar grupo
+  refreshChatList();
+  closeGroupOptions();
+};
+
 const handleReconnect = async () => {
   if (!currentUserId.value) return;
   
@@ -291,6 +362,31 @@ const handleReconnect = async () => {
     showToastMessage('Reconectando...', 'warning');
   } catch (error) {
     showToastMessage('Error al reconectar', 'danger');
+  }
+};
+
+// 🔧 NUEVA FUNCIÓN: Refrescar lista de chats
+const refreshChatList = async () => {
+  if (!currentUserId.value) return;
+  
+  try {
+    console.log('🔄 Refrescando lista de chats...');
+    const response = await fetch(`${config.api.fullApiUrl}/chat/usuario/${currentUserId.value}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const chatsData = await response.json();
+      chats.value = chatsData;
+      console.log('✅ Lista de chats actualizada desde API:', chatsData.length);
+    } else {
+      console.error('❌ Error actualizando chats desde API');
+    }
+  } catch (error) {
+    console.error('❌ Error refrescando chats:', error);
   }
 };
 
@@ -432,6 +528,16 @@ onMounted(async () => {
   await setupWebSocketConnection();
 });
 
+// 🔧 NUEVO: onActivated para refrescar cuando regresas del chat
+onActivated(async () => {
+  console.log('📱 ChatListView activado - refrescando chats...');
+  
+  // Refrescar la lista al regresar de un chat
+  if (currentUserId.value) {
+    await refreshChatList();
+  }
+});
+
 onUnmounted(() => {
   console.log('📱 ChatListView desmontado');
   // No desconectamos el WebSocket aquí porque puede ser usado por otros componentes
@@ -439,8 +545,18 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ===== CHAT LIST STYLES ===== */
+/* Reutilizar los estilos existentes + nuevos para grupo */
 
+.group-options-btn {
+  --color: var(--gs-text-tertiary);
+  margin-right: var(--gs-space-xs);
+}
+
+.group-options-btn:hover {
+  --color: var(--gs-primary-500);
+}
+
+/* Resto de estilos iguales a la versión anterior... */
 .gs-chat-list-page {
   --ion-background-color: var(--gs-bg-primary);
 }
@@ -775,46 +891,6 @@ onUnmounted(() => {
   line-height: var(--gs-leading-relaxed);
 }
 
-/* === CONNECTION BANNER === */
-
-.gs-connection-banner {
-  position: fixed;
-  top: calc(var(--ion-safe-area-top) + 60px);
-  left: var(--gs-space-md);
-  right: var(--gs-space-md);
-  display: flex;
-  align-items: center;
-  gap: var(--gs-space-sm);
-  padding: var(--gs-space-sm) var(--gs-space-md);
-  border-radius: var(--gs-radius-lg);
-  font-size: var(--gs-text-sm);
-  font-weight: var(--gs-font-medium);
-  z-index: var(--gs-z-overlay);
-  animation: gs-slide-down 0.3s ease-out;
-  box-shadow: var(--gs-shadow-lg);
-}
-
-.gs-connection-banner.gs-connection-error {
-  background: var(--gs-error-500);
-  color: white;
-}
-
-.gs-connection-banner.gs-connection-warning {
-  background: var(--gs-warning-500);
-  color: white;
-}
-
-@keyframes gs-slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* === FAB === */
 
 .gs-fab {
@@ -827,65 +903,5 @@ onUnmounted(() => {
   --background: var(--gs-primary-600);
   transform: translateY(-2px);
   --box-shadow: var(--gs-shadow-xl);
-}
-
-/* === ANIMATIONS === */
-
-.gs-chat-item-enter-active,
-.gs-chat-item-leave-active {
-  transition: all 0.3s ease;
-}
-
-.gs-chat-item-enter-from {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-.gs-chat-item-leave-to {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.gs-chat-item-move {
-  transition: transform 0.3s ease;
-}
-
-/* === RESPONSIVE === */
-
-@media (max-width: 768px) {
-  .gs-chat-container {
-    padding: var(--gs-space-sm);
-  }
-  
-  .gs-chat-item {
-    padding: var(--gs-space-sm);
-  }
-  
-  .gs-avatar-circle {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-  }
-  
-  .gs-chat-title {
-    font-size: var(--gs-text-base);
-  }
-  
-  .gs-last-message {
-    font-size: var(--gs-text-xs);
-  }
-  
-  .gs-connection-banner {
-    left: var(--gs-space-sm);
-    right: var(--gs-space-sm);
-  }
-}
-
-/* === DARK MODE === */
-
-@media (prefers-color-scheme: dark) {
-  .gs-chat-item.gs-has-unread {
-    background: linear-gradient(135deg, var(--gs-bg-secondary) 0%, var(--gs-primary-900) 100%);
-  }
 }
 </style>
