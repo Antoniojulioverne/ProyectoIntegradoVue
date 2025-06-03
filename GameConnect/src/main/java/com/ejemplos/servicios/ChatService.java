@@ -61,6 +61,89 @@ public class ChatService {
         return chatDTOConverter.convertirADto(chat, usuario1Id);
     }
     
+    // NUEVO: Método para crear chat usando el DTO existente CreateChatDTO
+    public ChatDTO crearChat(CreateChatDTO dto, Long creadorId) {
+        if (dto.getTipo() == null) {
+            throw new RuntimeException("El tipo de chat es obligatorio");
+        }
+        
+        if (dto.getTipo().equals("PRIVADO")) {
+            // Para chat privado, necesitamos exactamente 2 participantes
+            if (dto.getParticipantesIds() == null || dto.getParticipantesIds().size() != 2) {
+                throw new RuntimeException("Chat privado requiere exactamente 2 participantes");
+            }
+            
+            Long usuario1Id = creadorId;
+            Long usuario2Id = dto.getParticipantesIds().stream()
+                .filter(id -> !id.equals(creadorId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Segundo participante no válido"));
+            
+            return crearChatPrivado(usuario1Id, usuario2Id);
+            
+        } else if (dto.getTipo().equals("GRUPO")) {
+            // Para chat grupal
+            if (dto.getNombreChat() == null || dto.getNombreChat().trim().isEmpty()) {
+                throw new RuntimeException("Se requiere nombre para chat grupal");
+            }
+            if (dto.getParticipantesIds() == null || dto.getParticipantesIds().isEmpty()) {
+                throw new RuntimeException("Se requieren participantes para chat grupal");
+            }
+            
+            return crearChatGrupal(dto.getNombreChat(), dto.getParticipantesIds(), creadorId);
+            
+        } else {
+            throw new RuntimeException("Tipo de chat no soportado: " + dto.getTipo());
+        }
+    }
+    
+    // NUEVO: Método para crear chat grupal
+    public ChatDTO crearChatGrupal(String nombreGrupo, List<Long> participantesIds, Long creadorId) {
+        // Validar datos de entrada
+        if (nombreGrupo == null || nombreGrupo.trim().isEmpty()) {
+            throw new RuntimeException("El nombre del grupo es obligatorio");
+        }
+        
+        if (participantesIds == null || participantesIds.isEmpty()) {
+            throw new RuntimeException("El grupo debe tener al menos un participante");
+        }
+        
+        // Verificar que el creador existe
+        Usuario creador = usuarioRepositorio.findById(creadorId).orElseThrow(
+            () -> new RuntimeException("Usuario creador no encontrado")
+        );
+        
+        // Crear el chat grupal
+        Chat chat = new Chat();
+        chat.setNombreChat(nombreGrupo.trim());
+        chat.setTipo(TipoChat.GRUPO);
+        
+        chat = chatRepositorio.save(chat);
+        
+        // Agregar el creador como administrador
+        chatParticipanteRepositorio.save(ChatParticipante.builder()
+            .chat(chat)
+            .usuario(creador)
+            .esAdmin(true)
+            .build());
+        
+        // Agregar los demás participantes
+        for (Long participanteId : participantesIds) {
+            if (!participanteId.equals(creadorId)) { // No duplicar el creador
+                Usuario participante = usuarioRepositorio.findById(participanteId).orElse(null);
+                if (participante != null) {
+                    chatParticipanteRepositorio.save(ChatParticipante.builder()
+                        .chat(chat)
+                        .usuario(participante)
+                        .esAdmin(false)
+                        .build());
+                }
+            }
+        }
+        
+        return chatDTOConverter.convertirADto(chat, creadorId);
+    }
+    
     public List<ChatDTO> obtenerChatsDeUsuario(Long usuarioId) {
         List<Chat> chats = chatRepositorio.findChatsByUsuarioId(usuarioId);
         return chats.stream()
@@ -176,5 +259,65 @@ public class ChatService {
             return Optional.of(mensajeDTOConverter.convertirADto(mensajes.get(0)));
         }
         return Optional.empty();
+    }
+    
+    // NUEVO: Métodos adicionales para gestión de grupos
+    public void agregarParticipanteAGrupo(Long chatId, Long usuarioId, Long adminId) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        if (chat.getTipo() != TipoChat.GRUPO) {
+            throw new RuntimeException("Solo se pueden agregar participantes a grupos");
+        }
+        
+        // Verificar que quien agrega es admin
+        ChatParticipante admin = chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, adminId)
+            .orElseThrow(() -> new RuntimeException("Administrador no encontrado"));
+        
+        if (!admin.getEsAdmin()) {
+            throw new RuntimeException("Solo los administradores pueden agregar participantes");
+        }
+        
+        // Verificar que el usuario no es ya participante
+        if (chatParticipanteRepositorio.existsByChatChatIdAndUsuarioUsuarioId(chatId, usuarioId)) {
+            throw new RuntimeException("El usuario ya es participante del grupo");
+        }
+        
+        Usuario usuario = usuarioRepositorio.findById(usuarioId).orElseThrow(
+            () -> new RuntimeException("Usuario no encontrado")
+        );
+        
+        chatParticipanteRepositorio.save(ChatParticipante.builder()
+            .chat(chat)
+            .usuario(usuario)
+            .esAdmin(false)
+            .build());
+    }
+    
+    public void removerParticipanteDeGrupo(Long chatId, Long usuarioId, Long adminId) {
+        Chat chat = chatRepositorio.findById(chatId).orElseThrow(
+            () -> new RuntimeException("Chat no encontrado")
+        );
+        
+        if (chat.getTipo() != TipoChat.GRUPO) {
+            throw new RuntimeException("Solo se pueden remover participantes de grupos");
+        }
+        
+        // Verificar que quien remueve es admin
+        ChatParticipante admin = chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, adminId)
+            .orElseThrow(() -> new RuntimeException("Administrador no encontrado"));
+        
+        if (!admin.getEsAdmin()) {
+            throw new RuntimeException("Solo los administradores pueden remover participantes");
+        }
+        
+        ChatParticipante participante = chatParticipanteRepositorio
+            .findByChatChatIdAndUsuarioUsuarioId(chatId, usuarioId)
+            .orElseThrow(() -> new RuntimeException("Participante no encontrado"));
+        
+        chatParticipanteRepositorio.delete(participante);
     }
 }

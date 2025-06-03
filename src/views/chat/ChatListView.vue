@@ -139,84 +139,12 @@
       </ion-fab>
     </ion-content>
 
-    <!-- Create Chat Modal -->
-    <ion-modal :is-open="showCreateChatModal" @did-dismiss="closeCreateChatModal">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>Crear Nuevo Chat</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="closeCreateChatModal">
-              <ion-icon name="close"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      
-      <ion-content class="gs-modal-content">
-        <div class="gs-modal-container">
-          <!-- Chat Type Selector -->
-          <div class="gs-form-section">
-            <label class="gs-label">Tipo de chat</label>
-            <ion-segment v-model="chatType" class="gs-segment">
-              <ion-segment-button value="privado">
-                <ion-icon name="person"></ion-icon>
-                <ion-label>Chat Privado</ion-label>
-              </ion-segment-button>
-              <ion-segment-button value="grupal">
-                <ion-icon name="people"></ion-icon>
-                <ion-label>Chat Grupal</ion-label>
-              </ion-segment-button>
-            </ion-segment>
-          </div>
-
-          <!-- Private Chat Form -->
-          <div v-if="chatType === 'privado'" class="gs-form-section">
-            <label class="gs-label">ID del usuario</label>
-            <input
-              v-model="selectedUserId"
-              type="number"
-              class="gs-input"
-              placeholder="Ingresa el ID del usuario"
-              :disabled="isCreatingChat"
-            />
-          </div>
-
-          <!-- Group Chat Form -->
-          <div v-if="chatType === 'grupal'" class="gs-form-section">
-            <label class="gs-label">Nombre del grupo</label>
-            <input
-              v-model="groupName"
-              type="text"
-              class="gs-input"
-              placeholder="Ingresa el nombre del grupo"
-              :disabled="isCreatingChat"
-            />
-            
-            <label class="gs-label">IDs de participantes</label>
-            <input
-              v-model="participantIds"
-              type="text"
-              class="gs-input"
-              placeholder="1, 2, 3 (separados por comas)"
-              :disabled="isCreatingChat"
-            />
-          </div>
-
-          <!-- Actions -->
-          <div class="gs-form-actions">
-            <button 
-              @click="createChat"
-              :disabled="!canCreateChat || isCreatingChat"
-              class="gs-button gs-button-primary"
-              :class="{ 'gs-button-loading': isCreatingChat }"
-            >
-              <ion-spinner v-if="isCreatingChat" name="dots"></ion-spinner>
-              <span v-else>Crear Chat</span>
-            </button>
-          </div>
-        </div>
-      </ion-content>
-    </ion-modal>
+    <!-- Create Chat Modal Integrado -->
+    <CreateChatModal
+      :is-open="showCreateChatModal"
+      @close="handleCloseCreateChatModal"
+      @chat-created="handleChatCreated"
+    />
 
     <!-- Toast notifications -->
     <ion-toast
@@ -235,14 +163,13 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, 
   IonContent, IonIcon, IonButtons, IonMenuButton,
-  IonFab, IonFabButton, IonModal, IonButton,
-  IonSegment, IonSegmentButton, IonLabel,
-  IonSpinner, IonToast
+  IonFab, IonFabButton, IonToast
 } from '@ionic/vue';
 import { useWebSocket, type ChatMessage, type ChatNotification } from '@/services/websocket/WebSocketService';
 import { useAuth } from '@/composables/useAuth';
 import { useApi } from '@/composables/useApi';
 import config from '@/config/config';
+import CreateChatModal from '@/views/chat/CreateChatModal.vue';
 
 // Types
 interface Chat {
@@ -278,11 +205,6 @@ const {
 const chats = ref<Chat[]>([]);
 const isLoading = ref(true);
 const showCreateChatModal = ref(false);
-const chatType = ref('privado');
-const selectedUserId = ref<number | null>(null);
-const groupName = ref('');
-const participantIds = ref('');
-const isCreatingChat = ref(false);
 const showToast = ref(false);
 const toastMessage = ref('');
 const toastColor = ref('success');
@@ -302,26 +224,28 @@ const connectionIcon = computed(() => {
   return 'wifi-outline';
 });
 
-const canCreateChat = computed(() => {
-  if (chatType.value === 'privado') {
-    return selectedUserId.value && selectedUserId.value > 0;
-  } else {
-    return groupName.value.trim() && participantIds.value.trim();
-  }
-});
-
 // Methods
 const getChatDisplayName = (chat: Chat): string => {
-  if (chat.nombreChat?.trim()) {
+  // Para chats grupales, usar nombreChat si existe
+  if (chat.nombreChat?.trim() && chat.participantes && chat.participantes.length > 2) {
     return chat.nombreChat;
   }
   
+  // Para chats privados (2 participantes), mostrar solo el otro usuario
   if (chat.participantes && chat.participantes.length === 2) {
-    const otherUser = chat.participantes.find(p => p.usuarioId !== currentUserId.value);
-    return otherUser?.username || `Chat #${chat.chatId}`;
+    // Obtener el username del usuario actual
+    const currentUsername = usuario.value?.username;
+    
+    // Encontrar el otro usuario
+    const otherUser = chat.participantes.find(p => p.username !== currentUsername);
+    
+    if (otherUser && otherUser.username) {
+      return otherUser.username;
+    }
   }
   
-  return `Chat #${chat.chatId}`;
+  // Fallback para casos edge
+  return chat.nombreChat?.trim() || `Chat #${chat.chatId}`;
 };
 
 const formatMessageTime = (dateString: string): string => {
@@ -466,82 +390,26 @@ const handleChatListUpdate = (updatedChats: Chat[]) => {
   chats.value = updatedChats;
 };
 
-// Modal Methods
-const closeCreateChatModal = () => {
+// Modal Event Handlers
+const handleCloseCreateChatModal = () => {
   showCreateChatModal.value = false;
-  resetCreateChatForm();
 };
 
-const resetCreateChatForm = () => {
-  chatType.value = 'privado';
-  selectedUserId.value = null;
-  groupName.value = '';
-  participantIds.value = '';
-  isCreatingChat.value = false;
-};
-
-const createChat = async () => {
-  if (!canCreateChat.value || isCreatingChat.value) return;
+const handleChatCreated = async (newChat: any) => {
+  console.log('✅ Chat creado desde modal:', newChat);
+  showToastMessage('Chat creado exitosamente', 'success');
   
-  isCreatingChat.value = true;
+  // Actualizar la lista de chats
+  if (!isConnected()) {
+    await loadChatsFromAPI();
+  }
   
-  try {
-    const endpoint = `${config.api.fullApiUrl}/chat/privado`;
-    const headers = {
-      'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
-      'Content-Type': 'application/json'
-    };
-    
-    let body;
-    if (chatType.value === 'privado') {
-      body = {
-        usuario1Id: currentUserId.value,
-        usuario2Id: selectedUserId.value
-      };
-    } else {
-      const participantsList = participantIds.value
-        .split(',')
-        .map(id => parseInt(id.trim()))
-        .filter(id => !isNaN(id));
-      
-      if (participantsList.length === 0) {
-        showToastMessage('IDs de participantes inválidos', 'danger');
-        return;
-      }
-      
-      body = {
-        nombreChat: groupName.value.trim(),
-        participantesIds: participantsList
-      };
-    }
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body)
+  // Navegar al nuevo chat si es privado
+  if (newChat.chatId) {
+    router.push({
+      name: 'Chat',
+      params: { chatId: newChat.chatId.toString() }
     });
-    
-    if (response.ok) {
-      const newChat = await response.json();
-      console.log('✅ Chat creado:', newChat);
-      showToastMessage('Chat creado exitosamente', 'success');
-      closeCreateChatModal();
-      
-      // El WebSocket debería actualizar la lista automáticamente
-      // pero como fallback, recargamos la lista
-      if (!isConnected()) {
-        await loadChatsFromAPI();
-      }
-    } else {
-      const errorText = await response.text();
-      showToastMessage(errorText || 'Error creando el chat', 'danger');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error creando chat:', error);
-    showToastMessage('Error creando el chat', 'danger');
-  } finally {
-    isCreatingChat.value = false;
   }
 };
 
@@ -961,45 +829,6 @@ onUnmounted(() => {
   --box-shadow: var(--gs-shadow-xl);
 }
 
-/* === MODAL STYLES === */
-
-.gs-modal-content {
-  --background: var(--gs-bg-primary);
-}
-
-.gs-modal-container {
-  padding: var(--gs-space-xl);
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.gs-form-section {
-  margin-bottom: var(--gs-space-xl);
-}
-
-.gs-label {
-  display: block;
-  font-size: var(--gs-text-sm);
-  font-weight: var(--gs-font-medium);
-  color: var(--gs-text-primary);
-  margin-bottom: var(--gs-space-sm);
-}
-
-.gs-segment {
-  --background: var(--gs-bg-tertiary);
-  border-radius: var(--gs-radius-lg);
-  margin-bottom: var(--gs-space-lg);
-}
-
-.gs-form-actions {
-  margin-top: var(--gs-space-2xl);
-}
-
-.gs-button-loading {
-  opacity: 0.8;
-  pointer-events: none;
-}
-
 /* === ANIMATIONS === */
 
 .gs-chat-item-enter-active,
@@ -1049,10 +878,6 @@ onUnmounted(() => {
   .gs-connection-banner {
     left: var(--gs-space-sm);
     right: var(--gs-space-sm);
-  }
-  
-  .gs-modal-container {
-    padding: var(--gs-space-lg);
   }
 }
 

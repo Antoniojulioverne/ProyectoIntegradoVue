@@ -79,7 +79,9 @@ import {
   alertCircle,
   refresh,
   sync,
-  cloudOfflineOutline
+  cloudOfflineOutline,
+  addCircleOutline,
+
 } from 'ionicons/icons';
 
 import { addIcons } from 'ionicons';
@@ -91,6 +93,7 @@ addIcons({
   checkmark,
   close,
   people,
+  'add-circle-outline':addCircleOutline,
   'arrow-back': arrowBack,
   person,
   'person-add': personAdd,

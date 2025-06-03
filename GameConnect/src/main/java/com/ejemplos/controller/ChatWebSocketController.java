@@ -284,6 +284,57 @@ public class ChatWebSocketController {
         }
     }
 
+    // NUEVO: Crear chat unificado (privado o grupal) usando CreateChatDTO
+    @MessageMapping("/chat.crear")
+    public void crearChat(@Payload CreateChatDTO createChatDTO, SimpMessageHeaderAccessor headerAccessor) {
+        try {
+            System.out.println("=== Creando Chat Unificado ===");
+            System.out.println("Tipo: " + createChatDTO.getTipo());
+            System.out.println("Participantes: " + createChatDTO.getParticipantesIds());
+            
+            // Verificar autenticación
+            Authentication auth = (Authentication) headerAccessor.getUser();
+            if (auth == null) {
+                enviarError("No hay autenticación válida", headerAccessor.getSessionId());
+                return;
+            }
+            
+            String username = auth.getName();
+            
+            // Verificar que el usuario autenticado está en la lista de participantes
+            Usuario usuarioAuth = usuarioRepositorio.findByEmail(username);
+            if (usuarioAuth == null || !createChatDTO.getParticipantesIds().contains(usuarioAuth.getUsuarioId())) {
+                enviarError("Usuario no autorizado para crear este chat", headerAccessor.getSessionId());
+                return;
+            }
+            
+            // Crear chat usando el servicio unificado
+            ChatDTO nuevoChat = chatService.crearChat(createChatDTO, usuarioAuth.getUsuarioId());
+            
+            // Obtener todos los participantes del nuevo chat
+            List<Long> participantesIds = chatService.obtenerParticipantesDelChat(nuevoChat.getChatId());
+            
+            // Notificar a todos los participantes sobre el nuevo chat
+            for (Long participanteId : participantesIds) {
+                Usuario participante = usuarioRepositorio.findById(participanteId).orElse(null);
+                if (participante != null) {
+                    messagingTemplate.convertAndSendToUser(
+                        participante.getEmail(), 
+                        "/queue/chat.nuevo", 
+                        nuevoChat
+                    );
+                }
+            }
+            
+            System.out.println("✅ Chat creado exitosamente: " + nuevoChat.getChatId() + " (Tipo: " + createChatDTO.getTipo() + ")");
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error creando chat: " + e.getMessage());
+            e.printStackTrace();
+            enviarError("Error al crear chat: " + e.getMessage(), headerAccessor.getSessionId());
+        }
+    }
+
     // Suscribirse a un chat (cuando el usuario entra a ver el chat)
     @MessageMapping("/chat.suscribir")
     public void suscribirseAChat(@Payload SuscribirChatDTO suscribirDTO, SimpMessageHeaderAccessor headerAccessor) {

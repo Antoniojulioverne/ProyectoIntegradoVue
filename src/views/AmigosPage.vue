@@ -19,7 +19,7 @@
       <div v-if="usuario?.usuarioId" class="main-content">
         <div class="welcome-section">
           <div class="user-greeting">
-            <h2>¡Hola, {{ usuario.nombre || 'Usuario' }}!</h2>
+            <h2>¡Hola, {{ usuario.username || 'Usuario' }}!</h2>
             <p>Gestiona tu lista de amigos</p>
           </div>
         </div>
