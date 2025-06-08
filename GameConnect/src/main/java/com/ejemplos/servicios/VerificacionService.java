@@ -69,7 +69,7 @@ public class VerificacionService {
         usuarioRepositorio.save(usuario);
         
         // IMPORTANTE: El enlace debe apuntar a tu app Ionic
-        String enlaceRecuperacion = "http://192.168.1.212:8100/recuperar-contrasena?token=" + token;
+        String enlaceRecuperacion = "http://172.25.9.154:8100/recuperar-contrasena?token=" + token;
         // Para producción: "https://tu-app-ionic.com/reset-password?token=" + token;
         
         // Enviar email con el enlace

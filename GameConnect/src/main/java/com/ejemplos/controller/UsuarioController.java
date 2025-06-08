@@ -324,4 +324,52 @@ public class UsuarioController {
 	        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
 	    }
 	}
+	
+	@GetMapping("/usuario/{id}/ranking-amigos")
+	public ResponseEntity<?> obtenerRankingAmigos(@PathVariable Long id) {
+	    // Verificar que el usuario existe
+	    Usuario usuarioActual = usuarioRepositorio.findById(id).orElse(null);
+	    if (usuarioActual == null) {
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    // Obtener todas las amistades del usuario
+	    List<Amistad> amistades = amistadRepositorio.findAmistadesByUsuarioId(id);
+	    
+	    // Crear lista de todos los usuarios (amigos + usuario actual)
+	    List<Usuario> usuariosParaRanking = amistades.stream()
+	            .map(amistad -> {
+	                // Obtener el otro usuario de la amistad
+	                return amistad.getUsuario().getUsuarioId().equals(id) 
+	                    ? amistad.getAmigo() 
+	                    : amistad.getUsuario();
+	            })
+	            .collect(Collectors.toList());
+	    
+	    // Agregar el usuario actual a la lista
+	    usuariosParaRanking.add(usuarioActual);
+
+	    // Crear el ranking usando la misma lógica que el ranking global
+	    List<UsuarioRankingDTO> ranking = usuariosParaRanking.stream()
+	            .map(usuario -> {
+	                List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
+
+	                return partidas.stream()
+	                        .max((p1, p2) -> Integer.compare(p1.getPuntos(), p2.getPuntos()))
+	                        .map(partidaMaxima -> new UsuarioRankingDTO(
+	                                usuario.getUsername(),
+	                                partidaMaxima.getPuntos(),
+	                                partidaMaxima.getFecha()
+	                                ))
+	                        .orElse(new UsuarioRankingDTO(
+	                                usuario.getUsername(),
+	                                0,
+	                                null
+	                                ));
+	            })
+	            .sorted((r1, r2) -> Integer.compare(r2.getPuntosMaximos(), r1.getPuntosMaximos())) // orden descendente
+	            .collect(Collectors.toList());
+
+	    return ResponseEntity.ok(ranking);
+	}
 }
