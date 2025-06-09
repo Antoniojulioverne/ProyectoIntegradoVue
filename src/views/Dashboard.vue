@@ -1,14 +1,17 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary" class="custom-toolbar">
-        <ion-title>Estadísticas de Juego</ion-title>
-        <ion-buttons slot="start"> 
+      <ion-header class="custom-header">
+      <ion-toolbar class="custom-toolbar">
+        <ion-buttons slot="start">
          <ion-menu-button auto-hide="false"></ion-menu-button>
         </ion-buttons>
+        <ion-title class="page-title">
+          <div class="title-container">
+            <span>Estadísticas</span>
+          </div>
+        </ion-title>
       </ion-toolbar>
     </ion-header>
-
     <ion-content class="ion-padding" :class="{ 'dark-theme': isDarkMode }">
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-container">
@@ -19,11 +22,36 @@
       <div v-else>
         <!-- Header Section -->
         <div class="welcome-container">
-          <div class="logo-container">
-            <div class="app-logo">GS</div>
+          <div class="profile-header">
+            <div class="profile-avatar">
+              <!-- Foto de perfil -->
+               <ProfileAvatar
+              :profile-image="userStats.fotoPerfil"
+              :username="userStats.username"
+              :size="80"
+             
+            />
+            </div>
+            
+            <div class="profile-info">
+              <h1>Bienvenido, {{ userStats.username }}</h1>
+              <p class="subtitle">Consulta tus estadísticas y compáralas con otros jugadores</p>
+              
+              <!-- Stats rápidas -->
+              <div class="quick-stats">
+                <div class="stat-item">
+                  <ion-icon name="trophy" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.totalPoints || 0 }}</span>
+                  <span class="stat-label">Puntos</span>
+                </div>
+                <div class="stat-item">
+                  <ion-icon name="medal" class="stat-icon"></ion-icon>
+                  <span class="stat-value">#{{ userStats.rank || '?' }}</span>
+                  <span class="stat-label">Ranking</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1>Bienvenido, {{ userStats.username }}</h1>
-          <p class="subtitle">Consulta tus estadísticas y compáralas con otros jugadores</p>
         </div>
         
         <!-- Tab Navigation -->
@@ -34,17 +62,7 @@
           <ion-segment-button value="ranking">
             <ion-label>Ranking Global</ion-label>
           </ion-segment-button>
-          <ion-segment-button value="skins">
-            <ion-label>Skins</ion-label>
-          </ion-segment-button>
         </ion-segment>
-
-        <!-- Skins Tab -->
-        <SkinSelection
-          v-if="selectedTab === 'skins'"
-          v-model="selectedSkin"
-          @apply="applySkinChange"
-        />
 
         <!-- Personal Stats Tab -->
         <PersonalStats
@@ -79,11 +97,10 @@ import {
   IonIcon, IonContent, IonSpinner, IonSegment, IonSegmentButton,
   IonLabel, toastController,IonMenuButton
 } from '@ionic/vue';
-import { logOutOutline, sunnyOutline, moonOutline } from 'ionicons/icons';
+import ProfileAvatar from '../ui/ProfileAvatar.vue';
 import { useApi } from '../composables/useApi';
 import { useAuth } from '../composables/useAuth';
 import { useTheme } from '../composables/useTheme';
-import SkinSelection from './SkinSelection.vue';
 import PersonalStats from './PersonalStats.vue';
 import GlobalRanking from '../stats/GlobalRanking.vue';
 
@@ -100,11 +117,48 @@ const isLoadingRanking = ref(false);
 const isLoadingGames = ref(false);
 const rankingError = ref(null);
 const gamesError = ref(null);
-const selectedSkin = ref('blue');
 const globalRanking = ref([]);
 const selectedTab = ref('personal');
 
-// Metodos
+// Methods
+const getProfileImageSrc = (fotoPerfil) => {
+  if (!fotoPerfil) return null;
+  
+  // Si ya es una URL completa
+  if (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://')) {
+    return fotoPerfil;
+  }
+  
+  // Si es base64 sin prefijo, añadir el prefijo
+  if (!fotoPerfil.startsWith('data:image/')) {
+    return `data:image/jpeg;base64,${fotoPerfil}`;
+  }
+  
+  // Si ya tiene el prefijo, devolverlo tal como está
+  return fotoPerfil;
+};
+
+const handleImageError = (event) => {
+  console.error('Error cargando imagen de perfil:', event);
+  // Ocultar la imagen y mostrar iniciales
+  event.target.style.display = 'none';
+  
+  // Buscar el elemento de iniciales hermano y mostrarlo
+  const nextSibling = event.target.nextElementSibling;
+  if (nextSibling) {
+    nextSibling.style.display = 'flex';
+  }
+};
+
+const getInitials = (username) => {
+  if (!username) return '?';
+  
+  const words = username.trim().split(' ');
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return username.charAt(0).toUpperCase();
+};
 
 const clearLocalState = () => {
   isLoading.value = true;
@@ -114,20 +168,6 @@ const clearLocalState = () => {
   gamesError.value = null;
   globalRanking.value = [];
   selectedTab.value = 'personal';
-};
-const applySkinChange = async () => {
-  try {
-    const userId = userStats.value?.id; // 👈 asegúrate que userStats esté bien inicializado
-
-    if (!userId) {
-      throw new Error('ID de usuario no disponible');
-    }
-
-    await changeUserSkin(userId, selectedSkin.value);
-    console.log(`Skin actualizado a: ${selectedSkin.value}`);
-  } catch (error) {
-    console.error('Error al aplicar skin:', error);
-  }
 };
 
 const loadUserStats = async () => {
@@ -167,7 +207,12 @@ const loadUserStats = async () => {
 
     // 4. Cargar datos de forma secuencial para mejor control de errores
     console.log('Cargando datos para usuario ID:', userId);
-
+ console.log('🔍 Usuario actual:', {
+    username: userStats.value.username,
+    fotoPerfil: userStats.value.fotoPerfil ? 'SÍ ✅' : 'NO ❌',
+    fotoLength: userStats.value.fotoPerfil?.length || 0,
+    emailVerificado: userStats.value.emailVerificado
+  });
     // Cargar puntos y monedas
     try {
       const { totalPoints, totalCoins } = await fetchUserPointsAndMoney(userId);
@@ -304,8 +349,9 @@ ion-content {
 }
 
 .custom-toolbar {
-  --background: linear-gradient(90deg, var(--primary-dark), var(--primary-medium), var(--accent-color));
+  --background: rgba(0, 0, 0);
   --color: white;
+  --border-color: rgba(255, 255, 255, 0.2);
 }
 
 .logout-text {
@@ -332,11 +378,21 @@ h1 {
   margin-bottom: 8px;
   color: var(--text-primary);
 }
+.page-title {
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.title-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .subtitle {
   color: var(--text-secondary);
   margin-top: 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .section-title {
@@ -356,8 +412,131 @@ h1 {
 }
 
 .welcome-container {
-  text-align: center;
   margin-bottom: 24px;
+}
+
+/* === PROFILE HEADER === */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: var(--card-bg);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--bg-secondary);
+}
+
+.profile-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profile-avatar .avatar-image,
+.profile-avatar .avatar-initials {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-avatar .avatar-image {
+  object-fit: cover;
+  border: 3px solid var(--primary-color);
+}
+
+.profile-avatar .avatar-initials {
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary-medium));
+  color: white;
+  font-size: 28px;
+  font-weight: 700;
+  border: 3px solid var(--primary-color);
+}
+
+.verified-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: var(--secondary-color);
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--card-bg);
+  font-size: 14px;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-info h1 {
+  margin-bottom: 8px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.quick-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  min-width: 80px;
+}
+
+.stat-icon {
+  font-size: 24px;
+  color: var(--primary-color);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Responsive para móviles */
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .profile-info h1 {
+    font-size: 24px;
+  }
+  
+  .quick-stats {
+    justify-content: center;
+    gap: 16px;
+  }
+  
+  .stat-item {
+    min-width: 70px;
+    padding: 10px 12px;
+  }
 }
 
 .logo-container {

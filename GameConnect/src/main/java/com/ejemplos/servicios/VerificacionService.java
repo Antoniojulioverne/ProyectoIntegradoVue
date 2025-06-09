@@ -40,14 +40,17 @@ public class VerificacionService {
             return false;
         }
         
-        if (usuario.getFechaExpiracionCodigo().isBefore(LocalDateTime.now())) {
-            return false; // Código expirado
+        // Verificar si el código no ha expirado
+        if (LocalDateTime.now().isAfter(usuario.getFechaExpiracionCodigo())) {
+            return false;
         }
         
-        // Marcar como verificado
+        // ACTUALIZACIÓN: Establecer fecha de creación cuando se verifica
         usuario.setEmailVerificado(true);
+        usuario.setFechaCreacion(LocalDateTime.now()); // ¡Nueva línea!
         usuario.setCodigoVerificacion(null);
         usuario.setFechaExpiracionCodigo(null);
+        
         usuarioRepositorio.save(usuario);
         
         return true;

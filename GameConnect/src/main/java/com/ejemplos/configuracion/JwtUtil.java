@@ -17,7 +17,7 @@ public class JwtUtil {
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 1 dia
+               // .expiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 1 dia
                 .signWith(SECRET_KEY)
                 .compact();
     }

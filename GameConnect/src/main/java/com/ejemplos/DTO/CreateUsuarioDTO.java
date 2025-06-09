@@ -14,4 +14,6 @@ public class CreateUsuarioDTO {
 	private String skin;
 	private String password;
 	private String  email;
+    private String fotoPerfil; // NUEVO: Base64 string de la imagen
+
 }

@@ -53,7 +53,14 @@ const routes: Array<RouteRecordRaw> = [
     path: '/amigos',
     name: 'AmigosPage',
     component: () => import('@/views/AmigosPage.vue')
+  },
+    {
+    path: '/MiPerfil',
+    name: 'MiPerfil',
+    component: () => import('@/views/MiPerfil.vue')
   }
+  
+  
 ]
 
 const router = createRouter({

@@ -13,6 +13,6 @@ public class UsuarioDTO {
 
 	private String username;
 	private String skin;
-
+	private String fotoPerfil;
 	//nombre de entidad+nombreDelAtributo identi
 }

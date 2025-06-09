@@ -13,13 +13,14 @@ public class UsuarioRankingDTO {
     private int puntosMaximos;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private String fechaPartida; // <-- String en vez de LocalDateTime
-
-    public UsuarioRankingDTO(String username, int puntosMaximos, LocalDateTime fechaPartida) {
+    private String fotoPerfil;
+    public UsuarioRankingDTO(String username, int puntosMaximos, LocalDateTime fechaPartida,String fotoPerfil) {
         this.username = username;
         this.puntosMaximos = puntosMaximos;
         this.fechaPartida = (fechaPartida != null)
             ? fechaPartida.toString() // o usar .format(...)
             : "No disponible";
+        this.fotoPerfil=fotoPerfil;
     }
 }
 

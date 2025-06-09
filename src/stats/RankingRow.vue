@@ -30,13 +30,30 @@
     
     <td class="player-cell">
       <div class="player-info">
+        <!-- Reemplazar avatar-circle con ProfileAvatar -->
         <div class="player-avatar">
-          <div class="avatar-circle">{{ getInitials(player.username) }}</div>
+         <ProfileAvatar
+  :profile-image="player.fotoPerfil"
+  :username="player.username"
+  :size="40"
+  :is-verified="player.emailVerificado"
+  :show-verification="false"
+/>
         </div>
         <div class="player-details">
-          <span class="username">{{ player.username || 'Usuario Desconocido' }}</span>
+          <div class="username-wrapper">
+            <span class="username">{{ player.username || 'Usuario Desconocido' }}</span>
+            <ion-icon 
+              v-if="player.emailVerificado && !isCurrentUser" 
+              :icon="checkmarkCircle"
+              class="verified-icon"
+            />
+          </div>
           <span class="player-meta" v-if="player.gamesPlayed">
             {{ player.gamesPlayed }} partidas jugadas
+          </span>
+          <span class="player-meta" v-else-if="player.totalPoints">
+            {{ formatScore(player.totalPoints) }} puntos totales
           </span>
         </div>
       </div>
@@ -57,7 +74,8 @@
 
 <script setup>
 import { IonIcon, IonBadge } from '@ionic/vue';
-import { trophy, flame } from 'ionicons/icons';
+import { trophy, flame, checkmarkCircle } from 'ionicons/icons';
+import ProfileAvatar from '../ui/ProfileAvatar.vue';
 
 defineProps({
   player: {
@@ -66,7 +84,11 @@ defineProps({
     default: () => ({
       username: 'Usuario Desconocido',
       puntosMaximos: 0,
-      fechaPartida: null
+      fechaPartida: null,
+      fotoPerfil: null,
+      emailVerificado: false,
+      gamesPlayed: null,
+      totalPoints: null
     })
   },
   position: {
@@ -79,18 +101,9 @@ defineProps({
   }
 });
 
-const getInitials = (name) => {
-  if (!name) return '?';
-  return name.split(' ')
-    .map(n => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase();
-};
-
 const formatScore = (score) => {
   if (score === null || score === undefined) return '0';
-  return score.toLocaleString();
+  return score.toLocaleString('es-ES');
 };
 
 const formatDate = (date) => {
@@ -209,28 +222,18 @@ tr:hover {
   flex-shrink: 0;
 }
 
-.avatar-circle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, 
-    var(--ion-color-primary) 0%, 
-    var(--ion-color-secondary) 100%);
-  color: white;
-  font-weight: bold;
-  border-radius: 50%;
-  font-size: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
 .player-details {
   display: flex;
   flex-direction: column;
   gap: 2px;
   flex: 1;
   min-width: 0;
+}
+
+.username-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .username {
@@ -240,6 +243,12 @@ tr:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.verified-icon {
+  color: var(--ion-color-success);
+  font-size: 16px;
+  flex-shrink: 0;
 }
 
 .player-meta {
@@ -297,14 +306,12 @@ tr:hover {
     font-size: 16px;
   }
   
-  .avatar-circle {
-    width: 32px;
-    height: 32px;
-    font-size: 12px;
-  }
-  
   td {
     padding: 12px 8px;
+  }
+  
+  .verified-icon {
+    font-size: 14px;
   }
 }
 

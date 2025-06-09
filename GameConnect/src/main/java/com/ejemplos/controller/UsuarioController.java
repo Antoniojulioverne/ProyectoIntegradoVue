@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Map;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -61,7 +62,7 @@ public class UsuarioController {
 	Date nuevaDate=null;
 	
 	@PostMapping("/usuario")
-	public ResponseEntity<?> nuevoSendero(@RequestBody CreateUsuarioDTO nuevo) {	
+	public ResponseEntity<?> nuevoUsuario(@RequestBody CreateUsuarioDTO nuevo) {	
 		Usuario n = usuarioDTOConverter.convertirAUsuario(nuevo);
 		
 		return ResponseEntity.status(HttpStatus.CREATED).body(usuarioRepositorio.save(n));
@@ -80,7 +81,7 @@ public class UsuarioController {
 	}
 
 	@GetMapping("/usuario/{id}")
-	public ResponseEntity<?> obetenerUno(@PathVariable Long id) {
+	public ResponseEntity<?> obetnerUno(@PathVariable Long id) {
 		
 		Usuario result =usuarioRepositorio.findById(id).orElse(null);
 		if (result ==null) {
@@ -91,23 +92,85 @@ public class UsuarioController {
 	}
 	
 	@PutMapping("/usuario/{id}")
-    public ResponseEntity<?> editarsendero(@RequestBody CreateUsuarioDTO editar, @PathVariable Long id){
-        if(usuarioRepositorio.existsById(id)) {
-            Usuario n = usuarioDTOConverter.convertirAUsuario(editar);
-            n.setUsuarioId(id);
-            if(editar.getUsername()==null)
-                n.setUsername(usuarioRepositorio.findById(id).get().getUsername());
-            if(editar.getSkin()==null)
-                n.setSkin(usuarioRepositorio.findById(id).get().getSkin());
-            if(editar.getEmail()==null)
-                n.setEmail(usuarioRepositorio.findById(id).get().getEmail());
-            if(editar.getPassword()==null)
-                n.setPassword(usuarioRepositorio.findById(id).get().getPassword());
-            return ResponseEntity.ok(usuarioRepositorio.save(n));
-        }else {
-            return ResponseEntity.notFound().build();
-        }
-    }
+	public ResponseEntity<?> editarsendero(@RequestBody CreateUsuarioDTO editar, @PathVariable Long id){
+	    if(usuarioRepositorio.existsById(id)) {
+	        Usuario usuarioExistente = usuarioRepositorio.findById(id).get();
+	        Usuario n = usuarioDTOConverter.convertirAUsuario(editar);
+	        n.setUsuarioId(id);
+	        n.setEmailVerificado(usuarioExistente.isEmailVerificado()); // Mantener estado de verificación
+	        
+	        // Mantener fecha de creación si ya existe
+	        if(usuarioExistente.getFechaCreacion() != null) {
+	            n.setFechaCreacion(usuarioExistente.getFechaCreacion());
+	        }
+	        
+	        // Solo actualizar campos que no son nulos
+	        if(editar.getUsername() == null)
+	            n.setUsername(usuarioExistente.getUsername());
+	        if(editar.getSkin() == null)
+	            n.setSkin(usuarioExistente.getSkin());
+	        if(editar.getEmail() == null)
+	            n.setEmail(usuarioExistente.getEmail());
+	        if(editar.getPassword() == null)
+	            n.setPassword(usuarioExistente.getPassword());
+	        
+	        // MANEJO DE FOTO DE PERFIL
+	        if(editar.getFotoPerfil() == null) {
+	            // Si no se envía foto, mantener la existente
+	            n.setFotoPerfil(usuarioExistente.getFotoPerfil());
+	        } else if(editar.getFotoPerfil().trim().isEmpty()) {
+	            // Si se envía string vacío, eliminar foto
+	            n.setFotoPerfil(null);
+	        } else {
+	            // Si se envía foto nueva, validar formato Base64
+	            if(isValidBase64Image(editar.getFotoPerfil())) {
+	                // Validar tamaño de la imagen (opcional)
+	                if (editar.getFotoPerfil().length() > 2 * 1024 * 1024) { // ~1.5MB en Base64
+	                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	                            .body("La imagen es demasiado grande. Máximo 1.5MB.");
+	                }
+	                n.setFotoPerfil(editar.getFotoPerfil());
+	            } else {
+	                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+	                        .body("Formato de imagen inválido. Debe ser Base64 válido.");
+	            }
+	        }
+	      
+	        return ResponseEntity.ok(usuarioRepositorio.save(n));
+	    } else {
+	        return ResponseEntity.notFound().build();
+	    }
+	}
+
+	// Método helper para validar imágenes Base64
+	private boolean isValidBase64Image(String base64String) {
+	    try {
+	        // Verificar que tenga el prefijo correcto para imágenes
+	        if (!base64String.startsWith("data:image/")) {
+	            return false;
+	        }
+	        
+	        // Extraer solo la parte Base64 (después de la coma)
+	        String[] parts = base64String.split(",");
+	        if (parts.length != 2) {
+	            return false;
+	        }
+	        
+	        // Verificar que sea Base64 válido
+	        Base64.getDecoder().decode(parts[1]);
+	        
+	        // Verificar que sea un tipo de imagen permitido
+	        String mimeType = parts[0];
+	        return mimeType.contains("image/jpeg") || 
+	               mimeType.contains("image/jpg") || 
+	               mimeType.contains("image/png") || 
+	               mimeType.contains("image/gif") ||
+	               mimeType.contains("image/webp");
+	               
+	    } catch (Exception e) {
+	        return false;
+	    }
+	}
 
 	@DeleteMapping("/usuario/{id}")
 	public ResponseEntity<Object> borrarSendero(@PathVariable Long id) {
@@ -229,11 +292,13 @@ public class UsuarioController {
 							.map(partidaMaxima -> new UsuarioRankingDTO(
 									usuario.getUsername(),
 									partidaMaxima.getPuntos(),
-									partidaMaxima.getFecha()
+									partidaMaxima.getFecha(),
+									usuario.getFotoPerfil()
 									))
 							.orElse(new UsuarioRankingDTO( // ← aquí el cambio importante
 									usuario.getUsername(),
 									0,
+									null,
 									null
 									));
 				})
@@ -359,11 +424,13 @@ public class UsuarioController {
 	                        .map(partidaMaxima -> new UsuarioRankingDTO(
 	                                usuario.getUsername(),
 	                                partidaMaxima.getPuntos(),
-	                                partidaMaxima.getFecha()
+	                                partidaMaxima.getFecha(),
+	                                usuario.getFotoPerfil()
 	                                ))
 	                        .orElse(new UsuarioRankingDTO(
 	                                usuario.getUsername(),
 	                                0,
+	                                null,
 	                                null
 	                                ));
 	            })

@@ -83,7 +83,18 @@ import {
   addCircleOutline,
   ellipsisVertical,
   exit,
-
+  cameraOutline,
+  // Nuevos iconos faltantes
+  personCircleOutline,
+  refreshOutline,
+  checkmarkOutline,
+  checkmarkCircle,
+  informationCircleOutline,
+  colorPaletteOutline,
+  shieldCheckmarkOutline,
+  alertCircleOutline,
+  calendarOutline,
+  timeOutline
 } from 'ionicons/icons';
 
 import { addIcons } from 'ionicons';
@@ -91,17 +102,22 @@ import { addIcons } from 'ionicons';
 // Registrar todos los iconos
 addIcons({
   exit,
-  'ellipsis-vertical':ellipsisVertical,
+  cameraOutline,
+  'camera-outline': cameraOutline,
+  'ellipsis-vertical': ellipsisVertical,
   send,
   add,
   checkmark,
+  'checkmark-outline': checkmarkOutline,
+  'checkmark-circle': checkmarkCircle,
   close,
   people,
-  'add-circle-outline':addCircleOutline,
+  'add-circle-outline': addCircleOutline,
   'arrow-back': arrowBack,
   person,
   'person-add': personAdd,
   'person-circle': personCircle,
+  'person-circle-outline': personCircleOutline,
   chatbox,
   'chatbubbles-outline': chatbubblesOutline,
   'log-out': logOut,
@@ -136,9 +152,16 @@ addIcons({
   hourglass,
   'close-circle': closeCircle,
   'alert-circle': alertCircle,
+  'alert-circle-outline': alertCircleOutline,
   refresh,
+  'refresh-outline': refreshOutline,
   sync,
-  'cloud-offline-outline': cloudOfflineOutline
+  'cloud-offline-outline': cloudOfflineOutline,
+  'information-circle-outline': informationCircleOutline,
+  'color-palette-outline': colorPaletteOutline,
+  'shield-checkmark-outline': shieldCheckmarkOutline,
+  'calendar-outline': calendarOutline,
+  'time-outline': timeOutline
 });
 
 // Importar el composable de autenticación

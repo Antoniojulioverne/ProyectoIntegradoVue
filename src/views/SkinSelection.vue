@@ -14,13 +14,7 @@
       </div>
     </ion-radio-group>
 
-    <ion-button 
-      expand="block" 
-      class="apply-skin-button" 
-      @click="$emit('apply')"
-    >
-      Aplicar Cambios
-    </ion-button>
+  
   </div>
 </template>
 

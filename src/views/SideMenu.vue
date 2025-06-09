@@ -11,7 +11,7 @@
       <ion-list class="menu-list">
         <ion-item button @click="navigateTo('/Dashboard')" class="menu-item">
           <ion-icon slot="start" name="grid-outline" class="menu-icon"></ion-icon>
-          <ion-label class="menu-label">Dashboard</ion-label>
+          <ion-label class="menu-label">Estadísticas</ion-label>
         </ion-item>
         
         <ion-item button @click="navigateTo('/chatlist')" class="menu-item">
@@ -24,9 +24,9 @@
           <ion-label class="menu-label">Amigos</ion-label>
         </ion-item>
         
-        <ion-item button @click="navigateTo('/Configuracion')" class="menu-item">
+        <ion-item button @click="navigateTo('/MiPerfil')" class="menu-item">
           <ion-icon slot="start" name="settings-outline" class="menu-icon"></ion-icon>
-          <ion-label class="menu-label">Ajustes</ion-label>
+          <ion-label class="menu-label">Cuenta</ion-label>
         </ion-item>
         
         <!-- Toggle de tema -->

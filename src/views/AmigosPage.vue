@@ -3,7 +3,7 @@
     <ion-header class="custom-header">
       <ion-toolbar class="custom-toolbar">
         <ion-buttons slot="start">
-          <ion-back-button class="custom-back-btn"></ion-back-button>
+         <ion-menu-button auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="page-title">
           <div class="title-container">
@@ -118,7 +118,7 @@ import {
   IonTitle,
   IonContent,
   IonButtons,
-  IonBackButton,
+  IonMenuButton,
   IonSpinner,
   IonButton,
   IonIcon 
@@ -168,9 +168,9 @@ onMounted(async () => {
 }
 
 .custom-toolbar {
-  --background: rgba(255, 255, 255, 0.1);
+  --background: rgba(0, 0, 0);
   --color: white;
-  --border-color: rgba(255, 255, 255, 0.2);
+  --border-color: rgba(0, 0, 0);
 }
 
 .custom-back-btn {

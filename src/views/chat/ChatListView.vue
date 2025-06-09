@@ -44,7 +44,30 @@
             >
               <div class="gs-chat-avatar">
                 <div class="gs-avatar-circle">
-                  <ion-icon name="chatbubble-ellipses"></ion-icon>
+                  <!-- Avatar para chat grupal -->
+                  <div v-if="isGroupChat(chat)" class="gs-group-avatar">
+                    <ion-icon name="people" class="gs-group-icon"></ion-icon>
+                  </div>
+                  
+                  <!-- Avatar para chat privado -->
+                  <div v-else class="gs-private-avatar">
+                    <!-- Mostrar foto de perfil del otro usuario -->
+                    <img 
+                      v-if="getOtherUserPhoto(chat)" 
+                      :src="getProfileImageSrc(getOtherUserPhoto(chat))" 
+                      :alt="getChatDisplayName(chat)"
+                      class="gs-avatar-image"
+                      @error="handleImageError"
+                    />
+                    <!-- Fallback a iniciales si no hay foto -->
+                    <div 
+                      v-else 
+                      class="gs-avatar-initials"
+                      :style="{ display: getOtherUserPhoto(chat) ? 'none' : 'flex' }"
+                    >
+                      {{ getInitials(getChatDisplayName(chat)) }}
+                    </div>
+                  </div>
                 </div>
                 <div v-if="chat.mensajesNoLeidos > 0" class="gs-unread-dot"></div>
               </div>
@@ -63,6 +86,9 @@
                   <p v-if="chat.ultimoMensaje" class="gs-last-message">
                     <span v-if="chat.ultimoMensaje.usuarioId === currentUserId" class="gs-message-prefix">
                       Tú: 
+                    </span>
+                    <span v-else-if="isGroupChat(chat)" class="gs-message-prefix">
+                      {{ getUsernameById(chat.ultimoMensaje.usuarioId, chat) }}: 
                     </span>
                     {{ chat.ultimoMensaje.contenido }}
                   </p>
@@ -208,6 +234,7 @@ interface Chat {
     usuarioId: number;
     username: string;
     skin?: string;
+    fotoPerfil?: string;
   }>;
 }
 
@@ -249,9 +276,48 @@ const connectionIcon = computed(() => {
 });
 
 // Methods
-const getChatDisplayName = (chat: Chat): string => {
-  // 🔧 CORREGIDO: Lógica mejorada para nombres de chat
+const getProfileImageSrc = (fotoPerfil: string | null): string | null => {
+  if (!fotoPerfil) return null;
   
+  // Si ya es una URL completa
+  if (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://')) {
+    return fotoPerfil;
+  }
+  
+  // Si es base64 sin prefijo, añadir el prefijo
+  if (!fotoPerfil.startsWith('data:image/')) {
+    return `data:image/jpeg;base64,${fotoPerfil}`;
+  }
+  
+  // Si ya tiene el prefijo, devolverlo tal como está
+  return fotoPerfil;
+};
+
+const handleImageError = (event: Event) => {
+  console.error('Error cargando imagen de perfil:', event);
+  // Ocultar la imagen y mostrar iniciales como fallback
+  const imgElement = event.target as HTMLImageElement;
+  imgElement.style.display = 'none';
+  
+  // Buscar el elemento de iniciales y mostrarlo
+  const avatarContainer = imgElement.closest('.gs-private-avatar');
+  const initialsElement = avatarContainer?.querySelector('.gs-avatar-initials') as HTMLElement;
+  if (initialsElement) {
+    initialsElement.style.display = 'flex';
+  }
+};
+
+const getInitials = (name: string): string => {
+  if (!name) return '?';
+  
+  const words = name.trim().split(' ');
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name.charAt(0).toUpperCase();
+};
+
+const getChatDisplayName = (chat: Chat): string => {
   // Si es un grupo (tipo GRUPO), SIEMPRE mostrar nombreChat
   if (chat.tipo === 'GRUPO') {
     return chat.nombreChat?.trim() || `Grupo #${chat.chatId}`;
@@ -269,6 +335,23 @@ const getChatDisplayName = (chat: Chat): string => {
   
   // Fallback
   return chat.nombreChat?.trim() || `Chat #${chat.chatId}`;
+};
+
+const getOtherUserPhoto = (chat: Chat): string | null => {
+  // Solo para chats privados
+  if (chat.tipo !== 'PRIVADO' || !chat.participantes || chat.participantes.length !== 2) {
+    return null;
+  }
+  
+  const currentUsername = usuario.value?.username;
+  const otherUser = chat.participantes.find(p => p.username !== currentUsername);
+  
+  return otherUser?.fotoPerfil || null;
+};
+
+const getUsernameById = (userId: number, chat: Chat): string => {
+  const user = chat.participantes?.find(p => p.usuarioId === userId);
+  return user?.username || 'Usuario';
 };
 
 const isGroupChat = (chat: Chat): boolean => {
@@ -365,7 +448,7 @@ const handleReconnect = async () => {
   }
 };
 
-// 🔧 NUEVA FUNCIÓN: Refrescar lista de chats
+// Refrescar lista de chats
 const refreshChatList = async () => {
   if (!currentUserId.value) return;
   
@@ -528,7 +611,6 @@ onMounted(async () => {
   await setupWebSocketConnection();
 });
 
-// 🔧 NUEVO: onActivated para refrescar cuando regresas del chat
 onActivated(async () => {
   console.log('📱 ChatListView activado - refrescando chats...');
   
@@ -556,7 +638,6 @@ onUnmounted(() => {
   --color: var(--gs-primary-500);
 }
 
-/* Resto de estilos iguales a la versión anterior... */
 .gs-chat-list-page {
   --ion-background-color: var(--gs-bg-primary);
 }
@@ -733,13 +814,55 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   border-radius: var(--gs-radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Avatar para grupos */
+.gs-group-avatar {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--gs-secondary-500), var(--gs-secondary-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--gs-radius-full);
+}
+
+.gs-group-icon {
+  color: white;
+  font-size: 20px;
+}
+
+/* Avatar para chats privados */
+.gs-private-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--gs-radius-full);
+}
+
+.gs-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--gs-radius-full);
+  border: 2px solid var(--gs-primary-200);
+}
+
+.gs-avatar-initials {
+  width: 100%;
+  height: 100%;
   background: linear-gradient(135deg, var(--gs-primary-500), var(--gs-primary-600));
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 20px;
-  box-shadow: var(--gs-shadow-sm);
+  font-size: 16px;
+  font-weight: var(--gs-font-semibold);
+  border-radius: var(--gs-radius-full);
 }
 
 .gs-unread-dot {
@@ -772,36 +895,6 @@ onUnmounted(() => {
   font-size: var(--gs-text-lg);
   font-weight: var(--gs-font-semibold);
   color: var(--gs-text-primary);
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  margin-right: var(--gs-space-sm);
-}
-
-.gs-chat-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--gs-space-xs);
-}
-
-.gs-chat-time {
-  font-size: var(--gs-text-xs);
-  color: var(--gs-text-tertiary);
-  white-space: nowrap;
-}
-
-.gs-chat-preview {
-  display: flex;
-  align-items: center;
-  gap: var(--gs-space-xs);
-}
-
-.gs-last-message,
-.gs-no-messages {
-  font-size: var(--gs-text-sm);
-  color: var(--gs-text-secondary);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -891,6 +984,76 @@ onUnmounted(() => {
   line-height: var(--gs-leading-relaxed);
 }
 
+/* === CONNECTION BANNER === */
+
+.gs-connection-banner {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-sm);
+  padding: var(--gs-space-sm) var(--gs-space-md);
+  margin-top: var(--gs-space-md);
+  border-radius: var(--gs-radius-lg);
+  font-size: var(--gs-text-sm);
+  z-index: 10;
+}
+
+.gs-connection-error {
+  background: var(--gs-error-50);
+  color: var(--gs-error-700);
+  border: 1px solid var(--gs-error-200);
+}
+
+.gs-connection-warning {
+  background: var(--gs-warning-50);
+  color: var(--gs-warning-700);
+  border: 1px solid var(--gs-warning-200);
+}
+
+/* === BUTTONS === */
+
+.gs-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gs-space-sm);
+  padding: var(--gs-space-sm) var(--gs-space-md);
+  border: none;
+  border-radius: var(--gs-radius-md);
+  font-size: var(--gs-text-sm);
+  font-weight: var(--gs-font-medium);
+  cursor: pointer;
+  transition: all var(--gs-transition-fast);
+  text-decoration: none;
+}
+
+.gs-button-primary {
+  background: var(--gs-primary-500);
+  color: white;
+}
+
+.gs-button-primary:hover {
+  background: var(--gs-primary-600);
+  transform: translateY(-1px);
+}
+
+.gs-button-ghost {
+  background: transparent;
+  color: inherit;
+  padding: var(--gs-space-xs) var(--gs-space-sm);
+}
+
+.gs-button-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.gs-button-sm {
+  padding: var(--gs-space-xs) var(--gs-space-sm);
+  font-size: var(--gs-text-xs);
+}
+
 /* === FAB === */
 
 .gs-fab {
@@ -903,5 +1066,120 @@ onUnmounted(() => {
   --background: var(--gs-primary-600);
   transform: translateY(-2px);
   --box-shadow: var(--gs-shadow-xl);
+}
+
+/* === RESPONSIVE === */
+
+@media (max-width: 768px) {
+  .gs-chat-container {
+    padding: var(--gs-space-sm);
+  }
+  
+  .gs-chat-item {
+    padding: var(--gs-space-sm);
+  }
+  
+  .gs-avatar-circle {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .gs-chat-title {
+    font-size: var(--gs-text-base);
+  }
+  
+  .gs-last-message {
+    font-size: var(--gs-text-xs);
+  }
+}
+
+/* === DARK MODE === */
+
+@media (prefers-color-scheme: dark) {
+  .gs-avatar-image {
+    border-color: var(--gs-primary-700);
+  }
+  
+  .gs-connection-error {
+    background: var(--gs-error-900);
+    color: var(--gs-error-300);
+    border-color: var(--gs-error-800);
+  }
+  
+  .gs-connection-warning {
+    background: var(--gs-warning-900);
+    color: var(--gs-warning-300);
+    border-color: var(--gs-warning-800);
+  }
+}
+
+/* === ANIMATIONS === */
+
+@keyframes gs-skeleton {
+  0% {
+    background-color: var(--gs-gray-200);
+  }
+  50% {
+    background-color: var(--gs-gray-300);
+  }
+  100% {
+    background-color: var(--gs-gray-200);
+  }
+}
+
+.gs-skeleton {
+  animation: gs-skeleton 1.5s ease-in-out infinite;
+  background-color: var(--gs-gray-200);
+}
+
+/* Transiciones para la lista de chats */
+.gs-chat-item-enter-active,
+.gs-chat-item-leave-active {
+  transition: all 0.3s ease;
+}
+
+.gs-chat-item-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.gs-chat-item-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.gs-chat-item-move {
+  transition: transform 0.3s ease;
+}
+
+
+.gs-last-message,
+.gs-no-messages {
+  font-size: var(--gs-text-sm);
+  color: var(--gs-text-secondary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: var(--gs-space-sm);
+}
+
+.gs-chat-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-xs);
+}
+
+.gs-chat-time {
+  font-size: var(--gs-text-xs);
+  color: var(--gs-text-tertiary);
+  white-space: nowrap;
+}
+
+.gs-chat-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-xs);
 }
 </style>
