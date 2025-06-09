@@ -50,13 +50,6 @@
       v-else 
       :games="userStats.recentGames" 
     />
-
-    <!-- Additional Stats -->
-    <div class="stats-summary">
-      <StatsCard title="Partidas jugadas" :value="userStats.totalGames" />
-      <StatsCard title="Puntuación media" :value="userStats.averageScore" />
-      <StatsCard title="Posición en ranking" :value="userStats.rank" />
-    </div>
   </div>
 
   <!-- Loading state mientras no hay datos válidos -->

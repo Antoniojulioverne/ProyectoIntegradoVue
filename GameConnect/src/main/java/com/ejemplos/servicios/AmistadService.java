@@ -126,11 +126,8 @@ public class AmistadService {
     }
     
     public List<UsuarioBusquedaDTO> buscarUsuarios(String termino, Long usuarioActualId) {
-        List<Usuario> usuarios = usuarioRepositorio.findAll().stream()
-            .filter(u -> u.isEmailVerificado() && !u.getUsuarioId().equals(usuarioActualId))
-            .filter(u -> u.getUsername().toLowerCase().contains(termino.toLowerCase()) ||
-                        u.getEmail().toLowerCase().contains(termino.toLowerCase()))
-            .collect(Collectors.toList());
+        // Usar el nuevo método de repositorio que realiza la búsqueda en la base de datos
+        List<Usuario> usuarios = usuarioRepositorio.buscarPorUsernameOEmail(termino, usuarioActualId);
             
         return usuarios.stream()
             .map(usuario -> {
@@ -139,10 +136,27 @@ public class AmistadService {
                 dto.setUsername(usuario.getUsername());
                 dto.setEmail(usuario.getEmail());
                 dto.setSkin(usuario.getSkin());
+                dto.setFotoPerfil(usuario.getFotoPerfil()); // Asignar foto de perfil
+                dto.setEmailVerificado(usuario.isEmailVerificado());
                 
                 // Determinar estado de relación
                 String estadoRelacion = determinarEstadoRelacion(usuarioActualId, usuario.getUsuarioId());
                 dto.setEstadoRelacion(estadoRelacion);
+                
+                // Si hay una petición pendiente recibida, incluir el ID de la petición
+                if (estadoRelacion.equals("PETICION_RECIBIDA")) {
+                    var peticion = peticionAmistadRepositorio.findPeticionEntreUsuarios(
+                        usuario.getUsuarioId(), usuarioActualId);
+                    peticion.ifPresent(p -> dto.setPeticionId(p.getPeticionId()));
+                }
+                
+                // Log para depuración
+                System.out.println("Usuario encontrado: " + usuario.getUsername() + 
+                                  ", Foto: " + (usuario.getFotoPerfil() != null ? 
+                                               (usuario.getFotoPerfil().length() > 20 ? 
+                                               usuario.getFotoPerfil().substring(0, 20) + "..." : 
+                                               usuario.getFotoPerfil()) : 
+                                               "null"));
                 
                 return dto;
             })

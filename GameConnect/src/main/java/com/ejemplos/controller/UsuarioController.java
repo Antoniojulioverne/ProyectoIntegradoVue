@@ -281,32 +281,52 @@ public class UsuarioController {
 	
 	@GetMapping("/usuario/ranking")
 	public ResponseEntity<?> obtenerRankingUsuarios() {
-		List<Usuario> usuarios = usuarioRepositorio.findAll();
-		
-		List<UsuarioRankingDTO> ranking = usuarios.stream()
-				.map(usuario -> {
-					List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
-					
-					return partidas.stream()
-							.max((p1, p2) -> Integer.compare(p1.getPuntos(), p2.getPuntos()))
-							.map(partidaMaxima -> new UsuarioRankingDTO(
-									usuario.getUsername(),
-									partidaMaxima.getPuntos(),
-									partidaMaxima.getFecha(),
-									usuario.getFotoPerfil()
-									))
-							.orElse(new UsuarioRankingDTO( // ← aquí el cambio importante
-									usuario.getUsername(),
-									0,
-									null,
-									null
-									));
-				})
-				.sorted((r1, r2) -> Integer.compare(r2.getPuntosMaximos(), r1.getPuntosMaximos())) // orden descendente
-				.collect(Collectors.toList());
-		
-		return ResponseEntity.ok(ranking);
+	    List<Usuario> usuarios = usuarioRepositorio.findAll();
+	    
+	    List<UsuarioRankingDTO> ranking = usuarios.stream()
+	            .map(usuario -> {
+	                List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
+	                
+	                // Añadir debug para ver los valores de fotoPerfil
+	                System.out.println("Usuario: " + usuario.getUsername() + 
+	                                   ", Foto: " + (usuario.getFotoPerfil() != null ? 
+	                                    (usuario.getFotoPerfil().length() > 20 ? 
+	                                     usuario.getFotoPerfil().substring(0, 20) + "..." : 
+	                                     usuario.getFotoPerfil()) : 
+	                                    "null"));
+	                
+	                return partidas.stream()
+	                        .max((p1, p2) -> Integer.compare(p1.getPuntos(), p2.getPuntos()))
+	                        .map(partidaMaxima -> new UsuarioRankingDTO(
+	                                usuario.getUsername(),
+	                                partidaMaxima.getPuntos(),
+	                                partidaMaxima.getFecha(),
+	                                usuario.getFotoPerfil() // AQUÍ ESTÁ EL CAMBIO: añadir el cuarto parámetro
+	                                ))
+	                        .orElse(new UsuarioRankingDTO(
+	                                usuario.getUsername(),
+	                                0,
+	                                null,
+	                                usuario.getFotoPerfil() // AQUÍ ESTÁ EL CAMBIO: añadir el cuarto parámetro
+	                                ));
+	            })
+	            .sorted((r1, r2) -> Integer.compare(r2.getPuntosMaximos(), r1.getPuntosMaximos())) // orden descendente
+	            .collect(Collectors.toList());
+	    
+	    // Agregar logs para verificar el contenido de las fotos de perfil en el ranking
+	    for (int i = 0; i < Math.min(ranking.size(), 3); i++) { // Solo mostrar los primeros 3 para no saturar logs
+	        UsuarioRankingDTO dto = ranking.get(i);
+	        System.out.println("Ranking[" + i + "]: " + dto.getUsername() + 
+	                           ", Foto: " + (dto.getFotoPerfil() != null ? 
+	                            (dto.getFotoPerfil().length() > 20 ? 
+	                             dto.getFotoPerfil().substring(0, 20) + "..." : 
+	                             dto.getFotoPerfil()) : 
+	                            "null"));
+	    }
+	    
+	    return ResponseEntity.ok(ranking);
 	}
+
 	@PostMapping("/partida")
 	public ResponseEntity<?> crearPartida(@RequestBody CreatePartidaDTO nuevaPartida) {
 	    Usuario usuario = usuarioRepositorio.findById(nuevaPartida.getUsuarioId()).orElse(null);
@@ -418,6 +438,14 @@ public class UsuarioController {
 	    List<UsuarioRankingDTO> ranking = usuariosParaRanking.stream()
 	            .map(usuario -> {
 	                List<Partida> partidas = partidaRepositorio.findByUsuarioOrderByFechaDesc(usuario);
+	                
+	                // Añadir debug para ver los valores de fotoPerfil
+	                System.out.println("Amigo: " + usuario.getUsername() + 
+	                                   ", Foto: " + (usuario.getFotoPerfil() != null ? 
+	                                    (usuario.getFotoPerfil().length() > 20 ? 
+	                                     usuario.getFotoPerfil().substring(0, 20) + "..." : 
+	                                     usuario.getFotoPerfil()) : 
+	                                    "null"));
 
 	                return partidas.stream()
 	                        .max((p1, p2) -> Integer.compare(p1.getPuntos(), p2.getPuntos()))
@@ -425,17 +453,28 @@ public class UsuarioController {
 	                                usuario.getUsername(),
 	                                partidaMaxima.getPuntos(),
 	                                partidaMaxima.getFecha(),
-	                                usuario.getFotoPerfil()
+	                                usuario.getFotoPerfil() // Asegurarnos de que está pasando correctamente
 	                                ))
 	                        .orElse(new UsuarioRankingDTO(
 	                                usuario.getUsername(),
 	                                0,
 	                                null,
-	                                null
+	                                usuario.getFotoPerfil() // Asegurarnos de que está pasando correctamente
 	                                ));
 	            })
 	            .sorted((r1, r2) -> Integer.compare(r2.getPuntosMaximos(), r1.getPuntosMaximos())) // orden descendente
 	            .collect(Collectors.toList());
+
+	    // Agregar logs para verificar el contenido de las fotos de perfil en el ranking
+	    for (int i = 0; i < Math.min(ranking.size(), 3); i++) { // Solo mostrar los primeros 3 para no saturar logs
+	        UsuarioRankingDTO dto = ranking.get(i);
+	        System.out.println("RankingAmigos[" + i + "]: " + dto.getUsername() + 
+	                           ", Foto: " + (dto.getFotoPerfil() != null ? 
+	                            (dto.getFotoPerfil().length() > 20 ? 
+	                             dto.getFotoPerfil().substring(0, 20) + "..." : 
+	                             dto.getFotoPerfil()) : 
+	                            "null"));
+	    }
 
 	    return ResponseEntity.ok(ranking);
 	}

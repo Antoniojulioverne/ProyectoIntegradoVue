@@ -1,6 +1,6 @@
 <template>
   <tr :class="{ 'current-user': isCurrentUser, 'top-three': position <= 3 }">
-    <td class="position-cell">
+    <td class="position-cell" data-label="Posición">
       <div class="position-wrapper">
         <ion-icon 
           v-if="position === 1" 
@@ -28,17 +28,18 @@
       </div>
     </td>
     
-    <td class="player-cell">
+    <td class="player-cell" data-label="Jugador">
       <div class="player-info">
-        <!-- Reemplazar avatar-circle con ProfileAvatar -->
+        <!-- Usar ProfileAvatar para mostrar foto de perfil o iniciales -->
         <div class="player-avatar">
-         <ProfileAvatar
-  :profile-image="player.fotoPerfil"
-  :username="player.username"
-  :size="40"
-  :is-verified="player.emailVerificado"
-  :show-verification="false"
-/>
+          <ProfileAvatar
+            :profile-image="player.fotoPerfil"
+            :username="player.username"
+            :size="40"
+            :is-verified="player.emailVerificado"
+            :show-verification="false"
+            :border-color="isCurrentUser ? 'var(--ion-color-primary)' : null"
+          />
         </div>
         <div class="player-details">
           <div class="username-wrapper">
@@ -76,8 +77,9 @@
 import { IonIcon, IonBadge } from '@ionic/vue';
 import { trophy, flame, checkmarkCircle } from 'ionicons/icons';
 import ProfileAvatar from '../ui/ProfileAvatar.vue';
+import { onMounted } from 'vue';
 
-defineProps({
+const props = defineProps({
   player: {
     type: Object,
     required: true,
@@ -98,6 +100,18 @@ defineProps({
   isCurrentUser: {
     type: Boolean,
     default: false
+  }
+});
+
+// Debug info
+onMounted(() => {
+  if (props.isCurrentUser) {
+    console.log('RankingRow - Usuario actual:', {
+      username: props.player.username,
+      puntosMaximos: props.player.puntosMaximos,
+      tieneImagen: !!props.player.fotoPerfil,
+      imgLength: props.player.fotoPerfil?.length
+    });
   }
 });
 
@@ -171,45 +185,41 @@ tr:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .trophy-icon {
-  font-size: 20px;
+  font-size: 22px;
 }
 
-.trophy-icon.gold {
+.gold {
   color: #FFD700;
-  filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.3));
 }
 
-.trophy-icon.silver {
+.silver {
   color: #C0C0C0;
-  filter: drop-shadow(0 2px 4px rgba(192, 192, 192, 0.3));
 }
 
-.trophy-icon.bronze {
+.bronze {
   color: #CD7F32;
-  filter: drop-shadow(0 2px 4px rgba(205, 127, 50, 0.3));
 }
 
 .position-number {
-  font-weight: 700;
   font-size: 18px;
+  font-weight: 600;
   color: var(--ion-color-dark);
-  min-width: 20px;
 }
 
 .current-badge {
   font-size: 10px;
-  font-weight: 600;
-  margin-left: 4px;
+  padding: 3px 8px;
+  font-weight: 500;
+  border-radius: 10px;
 }
 
 .player-cell {
-  padding: 16px;
-  min-width: 200px;
+  padding: 12px 16px;
+  width: 50%;
 }
 
 .player-info {
@@ -225,9 +235,7 @@ tr:hover {
 .player-details {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
+  gap: 4px;
 }
 
 .username-wrapper {
@@ -237,18 +245,14 @@ tr:hover {
 }
 
 .username {
-  font-weight: 600;
   font-size: 16px;
+  font-weight: 600;
   color: var(--ion-color-dark);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .verified-icon {
   color: var(--ion-color-success);
   font-size: 16px;
-  flex-shrink: 0;
 }
 
 .player-meta {
@@ -257,82 +261,101 @@ tr:hover {
 }
 
 .score-cell {
-  padding: 16px;
-  text-align: right;
-  min-width: 120px;
+  width: 140px;
+  padding: 12px 16px;
+  text-align: center;
 }
 
 .score-wrapper {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
 }
 
 .score {
-  font-weight: 700;
   font-size: 18px;
-  color: var(--ion-color-primary);
+  font-weight: 600;
+  color: var(--ion-color-dark);
 }
 
 .score-icon {
-  font-size: 18px;
   color: var(--ion-color-danger);
+  font-size: 18px;
 }
 
 .date-cell {
-  padding: 16px 12px;
+  width: 130px;
+  padding: 12px 16px;
   text-align: center;
-  min-width: 120px;
 }
 
 .date {
   font-size: 14px;
   color: var(--ion-color-medium);
-  white-space: nowrap;
 }
 
-/* Responsive adjustments */
+/* Adaptación para modo oscuro */
+:global(.dark-theme) .position-number,
+:global(.dark-theme) .username,
+:global(.dark-theme) .score {
+  color: var(--ion-color-light);
+}
+
+:global(.dark-theme) tr:hover {
+  background-color: var(--ion-color-dark-tint);
+}
+
+:global(.dark-theme) .current-user {
+  background: linear-gradient(135deg, 
+    var(--ion-color-primary-shade) 0%, 
+    var(--ion-color-dark) 100%);
+}
+
+:global(.dark-theme) .top-three {
+  background: linear-gradient(135deg, 
+    var(--ion-color-warning-shade) 0%, 
+    var(--ion-color-dark) 100%);
+}
+
+/* Media queries para responsividad */
 @media (max-width: 768px) {
+  .position-cell {
+    width: auto;
+    padding: 12px 8px;
+  }
+  
+  .trophy-icon {
+    font-size: 18px;
+  }
+  
   .position-number {
     font-size: 16px;
+  }
+  
+  .current-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+  
+  .player-info {
+    gap: 8px;
   }
   
   .username {
     font-size: 14px;
   }
   
+  .player-meta {
+    font-size: 11px;
+  }
+  
   .score {
     font-size: 16px;
   }
   
-  td {
-    padding: 12px 8px;
+  .date {
+    font-size: 13px;
   }
-  
-  .verified-icon {
-    font-size: 14px;
-  }
-}
-
-/* Dark theme support */
-.dark-theme .current-user {
-  background: linear-gradient(135deg, 
-    var(--ion-color-primary-shade) 0%, 
-    var(--ion-color-dark-tint) 100%);
-}
-
-.dark-theme .top-three {
-  background: linear-gradient(135deg, 
-    var(--ion-color-warning-shade) 0%, 
-    var(--ion-color-dark-tint) 100%);
-}
-
-.dark-theme .username {
-  color: var(--ion-color-light);
-}
-
-.dark-theme .position-number {
-  color: var(--ion-color-light);
 }
 </style>

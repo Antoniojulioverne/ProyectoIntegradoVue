@@ -40,14 +40,34 @@
               <!-- Stats rápidas -->
               <div class="quick-stats">
                 <div class="stat-item">
-                  <ion-icon name="trophy" class="stat-icon"></ion-icon>
-                  <span class="stat-value">{{ userStats.totalPoints || 0 }}</span>
-                  <span class="stat-label">Puntos</span>
-                </div>
-                <div class="stat-item">
                   <ion-icon name="medal" class="stat-icon"></ion-icon>
                   <span class="stat-value">#{{ userStats.rank || '?' }}</span>
                   <span class="stat-label">Ranking</span>
+                </div>
+                <div class="stat-item">
+                  <ion-icon name="trophy" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.maxScore || 0 }}</span>
+                  <span class="stat-label">Puntuacion Maxima</span>
+                </div>
+                <div class="stat-item">
+                  <ion-icon name="medal" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.totalCoins || '?' }}</span>
+                  <span class="stat-label">Monedas Totales</span>
+                </div>
+                 <div class="stat-item">
+                  <ion-icon name="medal" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.totalPoints || '?' }}</span>
+                  <span class="stat-label">Puntos Totales</span>
+                </div>
+                <div class="stat-item">
+                  <ion-icon name="medal" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.averageScore || '?' }}</span>
+                  <span class="stat-label">Puntuacion Media</span>
+                </div>
+                <div class="stat-item">
+                  <ion-icon name="medal" class="stat-icon"></ion-icon>
+                  <span class="stat-value">{{ userStats.totalGames || '?' }}</span>
+                  <span class="stat-label">Partidas Jugadas</span>
                 </div>
               </div>
             </div>
@@ -106,10 +126,10 @@ import GlobalRanking from '../stats/GlobalRanking.vue';
 
 // Composables
 const router = useRouter();
-const { fetchUserGames, fetchUserPointsAndMoney, fetchRankingData,changeUserSkin
+const { fetchUserGames, fetchUserStats, fetchRankingData
  } = useApi();
-const { logout: authLogout, userStats, isAuthenticated, initializeUser, updateUserStats, updateUserGames, updateUserRank } = useAuth();
-const { isDarkMode, toggleDarkMode } = useTheme();
+const { userStats, isAuthenticated, initializeUser, updateUserStats, updateUserGames, updateUserRank } = useAuth();
+const { isDarkMode } = useTheme();
 
 // State
 const isLoading = ref(true);
@@ -119,46 +139,6 @@ const rankingError = ref(null);
 const gamesError = ref(null);
 const globalRanking = ref([]);
 const selectedTab = ref('personal');
-
-// Methods
-const getProfileImageSrc = (fotoPerfil) => {
-  if (!fotoPerfil) return null;
-  
-  // Si ya es una URL completa
-  if (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://')) {
-    return fotoPerfil;
-  }
-  
-  // Si es base64 sin prefijo, añadir el prefijo
-  if (!fotoPerfil.startsWith('data:image/')) {
-    return `data:image/jpeg;base64,${fotoPerfil}`;
-  }
-  
-  // Si ya tiene el prefijo, devolverlo tal como está
-  return fotoPerfil;
-};
-
-const handleImageError = (event) => {
-  console.error('Error cargando imagen de perfil:', event);
-  // Ocultar la imagen y mostrar iniciales
-  event.target.style.display = 'none';
-  
-  // Buscar el elemento de iniciales hermano y mostrarlo
-  const nextSibling = event.target.nextElementSibling;
-  if (nextSibling) {
-    nextSibling.style.display = 'flex';
-  }
-};
-
-const getInitials = (username) => {
-  if (!username) return '?';
-  
-  const words = username.trim().split(' ');
-  if (words.length >= 2) {
-    return (words[0][0] + words[1][0]).toUpperCase();
-  }
-  return username.charAt(0).toUpperCase();
-};
 
 const clearLocalState = () => {
   isLoading.value = true;
@@ -215,7 +195,7 @@ const loadUserStats = async () => {
   });
     // Cargar puntos y monedas
     try {
-      const { totalPoints, totalCoins } = await fetchUserPointsAndMoney(userId);
+      const { totalPoints, totalCoins } = await fetchUserStats(userId);
       updateUserStats({ totalPoints, totalCoins });
       console.log('Puntos y monedas cargados:', { totalPoints, totalCoins });
     } catch (error) {

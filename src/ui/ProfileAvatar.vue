@@ -1,4 +1,3 @@
-<!-- ProfileAvatar.vue -->
 <template>
   <div class="profile-avatar-container" :class="{ 'verified': showVerification && isVerified }">
     <!-- Imagen de perfil principal -->
@@ -47,36 +46,56 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref } from 'vue';
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue';
 import { IonIcon } from '@ionic/vue';
 
-// Props con tipos TypeScript correctos
-const props = defineProps<{
-  profileImage?: string | null;
-  username?: string;
-  size?: number;
-  isVerified?: boolean;
-  showVerification?: boolean;
-  borderColor?: string | null;
-}>();
+// Props con tipos
+const props = defineProps({
+  profileImage: {
+    type: String,
+    default: null
+  },
+  username: {
+    type: String,
+    default: 'Usuario'
+  },
+  size: {
+    type: Number,
+    default: 80
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  showVerification: {
+    type: Boolean,
+    default: true
+  },
+  borderColor: {
+    type: String,
+    default: null
+  }
+});
 
-// Props con valores por defecto
-const {
-  profileImage = null,
-  username = 'Usuario',
-  size = 80,
-  isVerified = false,
-  showVerification = true,
-  borderColor = null
-} = props;
-
+// Estado local
 const imageError = ref(false);
 const imageLoaded = ref(false);
+const imageAttempted = ref(false);
 
-// MISMA lógica que ChatList - funciona perfectamente
-const getProfileImageSrc = (fotoPerfil: string | null): string | null => {
+// Watch para resetear el estado cuando cambia la imagen
+watch(() => props.profileImage, (newVal) => {
+  if (newVal) {
+    imageError.value = false;
+    imageAttempted.value = false;
+  }
+});
+
+// Lógica para manejar la URL de la imagen
+const getProfileImageSrc = (fotoPerfil) => {
   if (!fotoPerfil) return null;
+
+  console.log('ProfileAvatar - Procesando imagen:', fotoPerfil.substring(0, 50) + '...');
   
   // Si ya es una URL completa
   if (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://')) {
@@ -85,6 +104,7 @@ const getProfileImageSrc = (fotoPerfil: string | null): string | null => {
   
   // Si es base64 sin prefijo, añadir el prefijo
   if (!fotoPerfil.startsWith('data:image/')) {
+    console.log('ProfileAvatar - Añadiendo prefijo base64');
     return `data:image/jpeg;base64,${fotoPerfil}`;
   }
   
@@ -92,20 +112,24 @@ const getProfileImageSrc = (fotoPerfil: string | null): string | null => {
   return fotoPerfil;
 };
 
-// MISMA lógica que ChatList - manejo de errores
-const handleImageError = (event: Event): void => {
-  console.error('Error cargando imagen de perfil:', event);
+// Manejo de errores al cargar la imagen
+const handleImageError = (event) => {
+  console.error('ProfileAvatar - Error cargando imagen de perfil:', props.username);
   imageError.value = true;
   imageLoaded.value = false;
+  imageAttempted.value = true;
 };
 
-const handleImageLoad = (): void => {
+// Manejo de carga exitosa
+const handleImageLoad = () => {
+  console.log('ProfileAvatar - Imagen cargada correctamente:', props.username);
   imageError.value = false;
   imageLoaded.value = true;
+  imageAttempted.value = true;
 };
 
-// MISMA lógica que ChatList - iniciales
-const getInitials = (userName: string): string => {
+// Obtener iniciales del nombre
+const getInitials = (userName) => {
   if (!userName) return '?';
   
   const words = userName.trim().split(' ');
@@ -114,6 +138,15 @@ const getInitials = (userName: string): string => {
   }
   return userName.charAt(0).toUpperCase();
 };
+
+// Debug info
+onMounted(() => {
+  console.log('ProfileAvatar montado:', {
+    username: props.username,
+    hasImage: !!props.profileImage,
+    imgLength: props.profileImage?.length
+  });
+});
 </script>
 
 <style scoped>

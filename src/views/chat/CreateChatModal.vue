@@ -1,44 +1,42 @@
+<!-- Actualizado: Se ha añadido el componente ProfileAvatar para las fotos de perfil -->
 <template>
-  <ion-modal :is-open="isOpen" @did-dismiss="$emit('close')" class="create-chat-modal">
-    <ion-header class="gs-header">
+  <ion-modal
+    :is-open="isOpen"
+    @will-dismiss="$emit('close')"
+    class="create-chat-modal"
+  >
+    <ion-header>
       <ion-toolbar>
-        <ion-title class="gs-heading-3">
-          {{ chatType === 'PRIVADO' ? 'Nuevo Chat' : 'Nuevo Grupo' }}
-        </ion-title>
+        <ion-title>{{ chatType === 'PRIVADO' ? 'Nuevo Chat' : 'Nuevo Grupo' }}</ion-title>
         <ion-buttons slot="end">
-          <ion-button @click="$emit('close')" fill="clear" class="gs-button gs-button-ghost">
-            <ion-icon name="close"></ion-icon>
+          <ion-button @click="$emit('close')">
+            <ion-icon slot="icon-only" name="close-outline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-
-    <ion-content class="gs-content">
+    <ion-content class="ion-padding">
       <div class="gs-container">
-        <!-- Selector de tipo de chat -->
+        <!-- Chat Type Selector -->
         <div class="form-section">
-          <label class="gs-label">Tipo de chat</label>
           <ion-segment v-model="chatType" class="chat-type-segment">
             <ion-segment-button value="PRIVADO" class="segment-button">
-              <ion-icon name="person" class="segment-icon"></ion-icon>
               <ion-label>Chat Privado</ion-label>
             </ion-segment-button>
             <ion-segment-button value="GRUPO" class="segment-button">
-              <ion-icon name="people" class="segment-icon"></ion-icon>
               <ion-label>Grupo</ion-label>
             </ion-segment-button>
           </ion-segment>
         </div>
 
-        <!-- Nombre del grupo (solo para grupos) -->
+        <!-- Group Name Input -->
         <div v-if="chatType === 'GRUPO'" class="form-section">
-          <label class="gs-label">Nombre del grupo</label>
+          <label class="gs-label">Nombre del Grupo</label>
           <input
             v-model="groupName"
             type="text"
             class="gs-input"
-            placeholder="Ingresa el nombre del grupo"
-            :disabled="isCreating"
+            placeholder="Ingresa un nombre para el grupo"
             maxlength="50"
           />
           <div class="input-helper">
@@ -46,95 +44,110 @@
           </div>
         </div>
 
-        <!-- Buscador de usuarios -->
-        <div class="form-section">
-          <label class="gs-label">
-            {{ chatType === 'PRIVADO' ? 'Buscar usuario' : 'Agregar participantes' }}
-          </label>
-          <div class="search-container">
-            <input
-              v-model="searchTerm"
-              type="text"
-              class="gs-input search-input"
-              placeholder="Buscar por nombre o email..."
-              :disabled="isCreating"
-              @input="debouncedSearch"
-            />
-            <ion-icon name="search-outline" class="search-icon"></ion-icon>
-          </div>
-        </div>
-
-        <!-- Usuarios seleccionados -->
+        <!-- Selected Users -->
         <div v-if="selectedUsers.length > 0" class="form-section">
           <label class="gs-label">
-            {{ chatType === 'PRIVADO' ? 'Usuario seleccionado' : 'Participantes seleccionados' }}
-            ({{ selectedUsers.length }})
+            {{ chatType === 'PRIVADO' ? 'Contacto Seleccionado' : 'Participantes Seleccionados' }}
           </label>
-          <div class="selected-users">
-            <div
-              v-for="user in selectedUsers"
+          <div class="selected-users-list">
+            <div 
+              v-for="user in selectedUsers" 
               :key="user.usuarioId"
-              class="selected-user-chip"
+              class="selected-user"
             >
-              <div class="user-avatar">
-                <img v-if="user.skin" :src="user.skin" :alt="user.username" />
-                <ion-icon v-else name="person-circle" class="avatar-icon"></ion-icon>
-              </div>
               <div class="user-info">
-                <span class="username">{{ user.username }}</span>
-                <span class="email">{{ user.email }}</span>
+                <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+                <ProfileAvatar
+                  :profile-image="user.fotoPerfil"
+                  :username="user.username"
+                  :size="40"
+                  :is-verified="user.emailVerificado"
+                  :show-verification="false"
+                />
+                <div class="user-details">
+                  <h3 class="username">{{ user.username }}</h3>
+                  <p class="email">{{ user.email }}</p>
+                  <span 
+                    v-if="user.estadoRelacion && user.estadoRelacion !== 'SIN_RELACION'" 
+                    :class="['relation-badge', relationClass(user.estadoRelacion)]"
+                  >
+                    {{ relationText(user.estadoRelacion) }}
+                  </span>
+                </div>
               </div>
               <button 
+                class="remove-btn" 
                 @click="removeUser(user)"
-                class="remove-btn"
                 :disabled="isCreating"
               >
-                <ion-icon name="close"></ion-icon>
+                <ion-icon name="close-outline"></ion-icon>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Resultados de búsqueda -->
-        <div v-if="searchTerm && !isSearching" class="form-section">
-          <label class="gs-label">Resultados</label>
-          
-          <div v-if="searchResults.length === 0" class="no-results">
-            <ion-icon name="search-outline" class="no-results-icon"></ion-icon>
-            <p>No se encontraron usuarios</p>
+        <!-- Search Section -->
+        <div class="form-section">
+          <label class="gs-label">
+            {{ selectedUsers.length > 0 ? 'Añadir más usuarios' : 'Buscar usuarios' }}
+          </label>
+          <div class="search-input-container">
+            <input
+              v-model="searchTerm"
+              type="text"
+              class="gs-input search-input"
+              placeholder="Buscar por nombre o email"
+              @input="debouncedSearch"
+            />
+            <ion-icon name="search" class="search-icon"></ion-icon>
           </div>
-          
-          <div v-else class="search-results">
-            <div
-              v-for="user in availableUsers"
+        </div>
+
+        <!-- Search Results -->
+        <div v-if="availableUsers.length > 0" class="form-section">
+          <div class="search-results">
+            <div 
+              v-for="user in availableUsers" 
               :key="user.usuarioId"
-              class="user-result"
+              class="user-card"
               @click="selectUser(user)"
             >
-              <div class="user-avatar">
-                <img v-if="user.skin" :src="user.skin" :alt="user.username" />
-                <ion-icon v-else name="person-circle" class="avatar-icon"></ion-icon>
-              </div>
-              <div class="user-details">
-                <h4 class="username">{{ user.username }}</h4>
-                <p class="email">{{ user.email }}</p>
-                <span 
-                  v-if="user.estadoRelacion && user.estadoRelacion !== 'SIN_RELACION'"
-                  class="relation-badge"
-                  :class="relationClass(user.estadoRelacion)"
-                >
-                  {{ relationText(user.estadoRelacion) }}
-                </span>
+              <div class="user-info">
+                <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+                <ProfileAvatar
+                  :profile-image="user.fotoPerfil"
+                  :username="user.username"
+                  :size="40"
+                  :is-verified="user.emailVerificado"
+                  :show-verification="false"
+                />
+                <div class="user-details">
+                  <h3 class="username">{{ user.username }}</h3>
+                  <p class="email">{{ user.email }}</p>
+                  <span 
+                    v-if="user.estadoRelacion && user.estadoRelacion !== 'SIN_RELACION'" 
+                    :class="['relation-badge', relationClass(user.estadoRelacion)]"
+                  >
+                    {{ relationText(user.estadoRelacion) }}
+                  </span>
+                </div>
               </div>
               <div class="user-actions">
                 <ion-icon 
-                  :name="isUserSelected(user) ? 'checkmark-circle' : 'add-circle-outline'"
+                  :name="isUserSelected(user) ? 
+                  'checkmark-circle' : 'add-circle-outline'"
                   class="action-icon"
                   :class="{ 'selected': isUserSelected(user) }"
                 ></ion-icon>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- No Results -->
+        <div v-else-if="searchTerm && !isSearching" class="no-results">
+          <ion-icon name="search" class="no-results-icon"></ion-icon>
+          <p>No se encontraron usuarios para "{{ searchTerm }}"</p>
         </div>
 
         <!-- Indicador de búsqueda -->
@@ -171,6 +184,7 @@ import {
 import { useApi } from '@/composables/useApi';
 import { useAuth } from '@/composables/useAuth';
 import config from '@/config/config';
+import ProfileAvatar from '@/ui/ProfileAvatar.vue'; // Importar el componente ProfileAvatar
 
 // Props & Emits
 const props = defineProps<{
@@ -244,6 +258,7 @@ const searchUsers = async () => {
 
     if (response.ok) {
       const users = await response.json();
+      console.log('Usuarios encontrados:', users); // Para depuración
       // Filtrar usuarios que ya están verificados
       searchResults.value = users.filter((user: any) => user.usuarioId !== currentUserId.value);
     } else {
@@ -418,112 +433,76 @@ watch(chatType, () => {
   --color: var(--gs-text-secondary);
   --color-checked: var(--gs-text-inverse);
   --background-checked: var(--gs-primary-500);
-  border-radius: var(--gs-radius-md);
-  min-height: 48px;
+  font-size: var(--gs-text-sm);
+  font-weight: var(--gs-font-medium);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-.segment-icon {
-  font-size: 1.25rem;
-  margin-bottom: var(--gs-space-xs);
+/* Inputs */
+.gs-input {
+  width: 100%;
+  padding: var(--gs-space-md);
+  border: 1px solid var(--gs-border-primary);
+  border-radius: var(--gs-radius-lg);
+  background: var(--gs-bg-secondary);
+  color: var(--gs-text-primary);
+  font-size: var(--gs-text-base);
+  transition: all var(--gs-transition-fast);
 }
 
-/* Search Container */
-.search-container {
+.gs-input:focus {
+  outline: none;
+  border-color: var(--gs-primary-500);
+  box-shadow: 0 0 0 2px var(--gs-primary-200);
+}
+
+.gs-input::placeholder {
+  color: var(--gs-text-tertiary);
+}
+
+/* Search Input */
+.search-input-container {
   position: relative;
 }
 
 .search-input {
-  padding-right: var(--gs-space-3xl);
+  padding-left: calc(var(--gs-space-lg) + 16px);
 }
 
 .search-icon {
   position: absolute;
-  right: var(--gs-space-md);
   top: 50%;
+  left: var(--gs-space-md);
   transform: translateY(-50%);
   color: var(--gs-text-tertiary);
-  font-size: 1.25rem;
-  pointer-events: none;
+  font-size: 18px;
 }
 
 /* Selected Users */
-.selected-users {
+.selected-users-list {
   display: flex;
   flex-direction: column;
-  gap: var(--gs-space-sm);
-  max-height: 200px;
-  overflow-y: auto;
+  gap: var(--gs-space-md);
 }
 
-.selected-user-chip {
+.selected-user {
   display: flex;
   align-items: center;
-  gap: var(--gs-space-sm);
-  padding: var(--gs-space-sm);
+  justify-content: space-between;
+  padding: var(--gs-space-md);
   background: var(--gs-bg-secondary);
-  border: 1px solid var(--gs-border-primary);
   border-radius: var(--gs-radius-lg);
-  transition: all var(--gs-transition-fast);
+  border: 1px solid var(--gs-border-primary);
 }
 
-.selected-user-chip:hover {
-  border-color: var(--gs-primary-300);
-  box-shadow: var(--gs-shadow-sm);
-}
-
-/* Search Results */
-.search-results {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gs-space-xs);
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.user-result {
+.user-info {
   display: flex;
   align-items: center;
   gap: var(--gs-space-md);
-  padding: var(--gs-space-md);
-  background: var(--gs-bg-secondary);
-  border: 1px solid var(--gs-border-primary);
-  border-radius: var(--gs-radius-lg);
-  cursor: pointer;
-  transition: all var(--gs-transition-fast);
 }
 
-.user-result:hover {
-  border-color: var(--gs-primary-300);
-  box-shadow: var(--gs-shadow-sm);
-  transform: translateY(-1px);
-}
-
-/* User Avatar */
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--gs-radius-full);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gs-primary-100);
-  flex-shrink: 0;
-}
-
-.user-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-icon {
-  font-size: 1.5rem;
-  color: var(--gs-primary-500);
-}
-
-/* User Info */
-.user-info,
+/* User Avatar - Replaced with ProfileAvatar component */
 .user-details {
   flex: 1;
   min-width: 0;
@@ -613,10 +592,6 @@ watch(chatType, () => {
 
 /* No Results */
 .no-results {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--gs-space-md);
   padding: var(--gs-space-2xl);
   text-align: center;
   color: var(--gs-text-tertiary);
@@ -624,7 +599,35 @@ watch(chatType, () => {
 
 .no-results-icon {
   font-size: 2rem;
-  opacity: 0.6;
+  margin-bottom: var(--gs-space-md);
+}
+
+/* Search Results */
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gs-space-md);
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: var(--gs-space-sm);
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--gs-space-md);
+  background: var(--gs-bg-secondary);
+  border-radius: var(--gs-radius-lg);
+  border: 1px solid var(--gs-border-primary);
+  cursor: pointer;
+  transition: all var(--gs-transition-fast);
+}
+
+.user-card:hover {
+  background: var(--gs-bg-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--gs-shadow-sm);
 }
 
 /* Search Loading */
@@ -632,83 +635,54 @@ watch(chatType, () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--gs-space-md);
+  justify-content: center;
   padding: var(--gs-space-xl);
   color: var(--gs-text-secondary);
 }
 
+.search-loading p {
+  margin-top: var(--gs-space-md);
+  font-size: var(--gs-text-sm);
+}
+
 /* Form Actions */
 .form-actions {
-  margin-top: var(--gs-space-2xl);
-  padding-top: var(--gs-space-lg);
-  border-top: 1px solid var(--gs-border-primary);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .create-btn {
-  width: 100%;
-  min-height: 48px;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--gs-space-sm);
+  padding: var(--gs-space-md) var(--gs-space-lg);
+  background: var(--gs-primary-500);
+  color: white;
+  border: none;
+  border-radius: var(--gs-radius-lg);
   font-weight: var(--gs-font-semibold);
+  font-size: var(--gs-text-base);
+  cursor: pointer;
+  transition: all var(--gs-transition-fast);
+}
+
+.create-btn:hover:not(:disabled) {
+  background: var(--gs-primary-600);
+  transform: translateY(-1px);
+  box-shadow: var(--gs-shadow-md);
+}
+
+.create-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .create-btn.loading {
-  opacity: 0.8;
-  pointer-events: none;
+  padding-right: var(--gs-space-xl);
 }
 
-.button-spinner,
-.button-icon {
-  font-size: 1.25rem;
-}
-
-/* Scrollbars */
-.selected-users::-webkit-scrollbar,
-.search-results::-webkit-scrollbar {
-  width: 6px;
-}
-
-.selected-users::-webkit-scrollbar-track,
-.search-results::-webkit-scrollbar-track {
-  background: var(--gs-bg-tertiary);
-  border-radius: var(--gs-radius-sm);
-}
-
-.selected-users::-webkit-scrollbar-thumb,
-.search-results::-webkit-scrollbar-thumb {
-  background: var(--gs-border-secondary);
-  border-radius: var(--gs-radius-sm);
-}
-
-.selected-users::-webkit-scrollbar-thumb:hover,
-.search-results::-webkit-scrollbar-thumb:hover {
-  background: var(--gs-text-tertiary);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .create-chat-modal {
-    --width: 100vw;
-    --height: 100vh;
-  }
-  
-  .gs-container {
-    padding: var(--gs-space-md);
-  }
-  
-  .user-result {
-    padding: var(--gs-space-sm);
-  }
-  
-  .user-avatar {
-    width: 36px;
-    height: 36px;
-  }
-  
-  .avatar-icon {
-    font-size: 1.25rem;
-  }
+.button-icon,
+.button-spinner {
+  margin-right: var(--gs-space-xs);
 }
 </style>

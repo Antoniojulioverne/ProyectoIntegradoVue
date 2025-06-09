@@ -6,7 +6,7 @@ import {
   IonCardSubtitle, IonCardContent, IonButton, IonIcon, IonSpinner
 } from '@ionic/vue';
 import { trophy, refresh, alertCircle, peopleOutline } from 'ionicons/icons';
-import RankingRow from './RankingRow.vue'; // Ajusta la ruta según tu estructura
+import RankingRow from './RankingRow.vue';
 import { useAuth } from '@/composables/useAuth';
 
 const props = defineProps({
@@ -117,7 +117,6 @@ defineExpose({
 });
 </script>
 
-<!-- El template es exactamente el mismo que en la versión anterior -->
 <template>
   <div class="ranking-container">
     <!-- Loading state -->
@@ -222,9 +221,7 @@ defineExpose({
   </div>
 </template>
 
-<!-- Los estilos son exactamente los mismos -->
 <style scoped>
-/* Todos los estilos anteriores... */
 .ranking-container {
   width: 100%;
 }
@@ -256,7 +253,6 @@ defineExpose({
   --color: var(--ion-color-primary);
 }
 
-/* Resto de estilos iguales que en la versión anterior... */
 .status-container {
   display: flex;
   align-items: center;
@@ -371,5 +367,247 @@ defineExpose({
   min-width: 600px;
 }
 
-/* El resto de los estilos responsive y de tabla son iguales... */
-</style>
+.ranking-table th {
+  padding: 14px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ion-color-medium-shade);
+  text-align: left;
+  border-bottom: 2px solid var(--ion-color-light-shade);
+  background-color: var(--ion-color-light-shade);
+}
+
+.ranking-table th.position-header {
+  text-align: center;
+  width: 100px;
+}
+
+.ranking-table th.player-header {
+  width: 50%;
+}
+
+.ranking-table th.score-header {
+  width: 140px;
+  text-align: center;
+}
+
+.ranking-table th.date-header {
+  width: 130px;
+  text-align: center;
+}
+
+/* Dark theme adjustments */
+:deep(.dark-theme) .status-card {
+  background: var(--ion-color-dark);
+}
+
+:deep(.dark-theme) .status-content h3 {
+  color: var(--ion-color-light);
+}
+
+:deep(.dark-theme) .status-content p {
+  color: var(--ion-color-medium-tint);
+}
+
+:deep(.dark-theme) .empty-state {
+  color: var(--ion-color-medium-tint);
+}
+
+:deep(.dark-theme) .empty-state h3 {
+  color: var(--ion-color-light);
+}
+
+:deep(.dark-theme) .ranking-table {
+  background-color: var(--ion-color-dark);
+}
+
+:deep(.dark-theme) .ranking-table th {
+  color: var(--ion-color-light);
+  border-bottom-color: var(--ion-color-dark-shade);
+  background-color: var(--ion-color-dark-shade);
+}
+
+/* Media queries for responsive design */
+@media (max-width: 768px) {
+  .ranking-table {
+    min-width: auto;
+  }
+  
+  .ranking-table thead {
+    display: none;
+  }
+  
+  .ranking-table tbody tr {
+    display: block;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--ion-color-light-shade);
+  }
+  
+  .ranking-table td {
+    display: block;
+    text-align: right;
+    padding-left: 50% !important;
+    position: relative;
+    border-bottom: 1px solid var(--ion-color-light-shade);
+    padding: 12px !important;
+  }
+  
+  .ranking-table td:before {
+    content: attr(data-label);
+    position: absolute;
+    left: 12px;
+    width: 45%;
+    padding-right: 10px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--ion-color-medium);
+  }
+  
+  .position-cell {
+    width: 100% !important;
+    min-width: auto;
+    text-align: left !important;
+  }
+  
+  .position-cell:before {
+    content: "Posición: ";
+  }
+  
+  .position-wrapper {
+    justify-content: flex-start;
+  }
+  
+  .player-cell {
+    width: 100% !important;
+    min-width: auto;
+  }
+  
+  .player-cell:before {
+    content: "Jugador: ";
+  }
+  
+  .player-info {
+    justify-content: flex-end;
+  }
+  
+  .score-cell {
+    width: 100% !important;
+    min-width: auto;
+    text-align: left !important;
+  }
+  
+  .score-cell:before {
+    content: "Puntos: ";
+  }
+  
+  .score-wrapper {
+    justify-content: flex-start;
+  }
+  
+  .date-cell {
+    width: 100% !important;
+    min-width: auto;
+    text-align: left !important;
+  }
+  
+  .date-cell:before {
+    content: "Fecha: ";
+  }
+  
+  /* Ajustes adicionales para móvil */
+  .trophy-icon {
+    font-size: 18px;
+  }
+  
+  .position-number {
+    font-size: 16px;
+  }
+  
+  .current-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+  
+  .avatar-circle {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+  
+  .username {
+    font-size: 15px;
+  }
+  
+  .player-meta {
+    font-size: 11px;
+  }
+  
+  .score {
+    font-size: 16px;
+  }
+  
+  .date {
+    font-size: 13px;
+  }
+  
+  /* Estilos especiales para filas destacadas */
+  .current-user {
+    border-left: none;
+    border-top: 4px solid var(--ion-color-primary);
+  }
+  
+  .top-three {
+    border-left: none;
+    border-top: 4px solid var(--ion-color-warning);
+  }
+}
+
+/* Ajustes para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  .ranking-table td {
+    padding-left: 30% !important;
+  }
+  
+  .ranking-table td:before {
+    width: 25%;
+  }
+  
+  .position-cell,
+  .player-cell,
+  .score-cell,
+  .date-cell {
+    padding: 10px !important;
+  }
+  
+  .player-info {
+    gap: 8px;
+  }
+  
+  .score {
+    font-size: 15px;
+  }
+}
+
+/* Dark theme adjustments para móvil */
+@media (max-width: 768px) {
+  :deep(.dark-theme) .ranking-table td:before {
+    color: var(--ion-color-medium-tint);
+  }
+  
+  :deep(.dark-theme) .ranking-table tbody tr {
+    border-bottom-color: var(--ion-color-dark-shade);
+  }
+  
+  :deep(.dark-theme) .ranking-table td {
+    border-bottom-color: var(--ion-color-dark-shade);
+  }
+  
+  :deep(.dark-theme) .current-user {
+    border-top-color: var(--ion-color-primary-shade);
+  }
+  
+  :deep(.dark-theme) .top-three {
+    border-top-color: var(--ion-color-warning-shade);
+  }
+  }
+  </style>

@@ -94,13 +94,19 @@ import {
   shieldCheckmarkOutline,
   alertCircleOutline,
   calendarOutline,
-  timeOutline
+  timeOutline,
+  trophy,
+  medal,
+  
 } from 'ionicons/icons';
 
 import { addIcons } from 'ionicons';
 
 // Registrar todos los iconos
 addIcons({
+  
+  trophy,
+  medal,
   exit,
   cameraOutline,
   'camera-outline': cameraOutline,

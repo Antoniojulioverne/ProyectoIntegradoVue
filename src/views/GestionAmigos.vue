@@ -1,37 +1,54 @@
+<!-- GestionAmigos.vue - Actualizado con fotos de perfil usando ProfileAvatar -->
 <template>
-  <div class="friend-management" :class="{ 'dark-mode': isDarkMode, 'mounted': isMounted }">
-    <!-- Tabs para navegar entre secciones -->
-    <div class="tabs">
-      <button 
-        v-for="(tab, index) in tabs" 
-        :key="tab.id"
-        @click="activeTab = tab.id"
-        :class="['tab-button', { active: activeTab === tab.id }]"
-        :style="{ '--delay': `${index * 0.1}s` }"
+  <div
+    class="friend-management"
+    :class="{ 'dark-mode': isDarkMode, 'mounted': isMounted }"
+  >
+    <!-- Tabs de navegación -->
+    <div class="tabs fade-in">
+      <button
+        @click="activeTab = 'search'"
+        :class="['tab-button', { active: activeTab === 'search' }]"
       >
-        <ion-icon :icon="tab.icon"></ion-icon>
-        {{ tab.label }}
-        <span v-if="tab.badge" class="badge">{{ tab.badge }}</span>
+        <ion-icon :icon="search"></ion-icon>
+        Buscar Amigos
+      </button>
+      <button
+        @click="activeTab = 'received'"
+        :class="['tab-button', { active: activeTab === 'received' }]"
+      >
+        <ion-icon :icon="mail"></ion-icon>
+        Solicitudes
+        <span v-if="peticionesRecibidas.length > 0" class="badge">
+          {{ peticionesRecibidas.length }}
+        </span>
+      </button>
+      <button
+        @click="activeTab = 'sent'"
+        :class="['tab-button', { active: activeTab === 'sent' }]"
+      >
+        <ion-icon :icon="paperPlane"></ion-icon>
+        Enviadas
+        <span v-if="peticionesEnviadas.length > 0" class="badge">
+          {{ peticionesEnviadas.length }}
+        </span>
       </button>
     </div>
 
-    <!-- Contenido de las tabs -->
-    <div class="tab-content">
-      
+    <!-- Contenido principal -->
+    <div class="content">
       <!-- Tab de Búsqueda -->
       <div v-if="activeTab === 'search'" class="search-section">
-        <div class="search-container">
-          <ion-searchbar
+        <div class="search-box fade-in">
+          <input
             v-model="searchTerm"
-            placeholder="Buscar usuarios por nombre o email..."
-            @ionInput="buscarUsuarios"
-            debounce="500"
-          ></ion-searchbar>
-        </div>
-
-        <div v-if="loading" class="loading fade-in">
-          <ion-spinner></ion-spinner>
-          <p>Buscando usuarios...</p>
+            type="text"
+            placeholder="Buscar por nombre de usuario o email"
+            @keyup.enter="buscarUsuarios"
+          />
+          <button @click="buscarUsuarios" :disabled="loading" class="search-button">
+            <ion-icon :icon="loading ? sync : search"></ion-icon>
+          </button>
         </div>
 
         <div v-if="usuariosEncontrados.length > 0" class="users-list">
@@ -42,10 +59,14 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="user-info">
-              <div class="user-avatar">
-                <img v-if="usuario.skin" :src="usuario.skin" :alt="usuario.username" />
-                <ion-icon v-else :icon="personCircle" size="large"></ion-icon>
-              </div>
+              <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+              <ProfileAvatar
+                :profile-image="usuario.fotoPerfil"
+                :username="usuario.username"
+                :size="48"
+                :is-verified="usuario.emailVerificado"
+                :show-verification="false"
+              />
               <div class="user-details">
                 <h3>{{ usuario.username }}</h3>
                 <p>{{ usuario.email }}</p>
@@ -54,35 +75,48 @@
             
             <div class="user-actions">
               <button 
-                v-if="usuario.estadoRelacion === 'SIN_RELACION'"
+                v-if="usuario.estadoRelacion === 'SIN_RELACION'" 
                 @click="enviarPeticion(usuario.usuarioId)"
                 class="btn btn-primary"
                 :disabled="sendingRequest"
               >
                 <ion-icon :icon="personAdd"></ion-icon>
-                <span>Enviar solicitud</span>
+                <span>Añadir</span>
               </button>
               
-              <span v-else-if="usuario.estadoRelacion === 'PETICION_ENVIADA'" class="status-badge sent">
-                <ion-icon :icon="checkmarkCircle"></ion-icon>
-                <span>Solicitud enviada</span>
-              </span>
+              <button 
+                v-else-if="usuario.estadoRelacion === 'PETICION_ENVIADA'"
+                class="btn btn-disabled"
+                disabled
+              >
+                <ion-icon :icon="time"></ion-icon>
+                <span>Enviada</span>
+              </button>
               
-              <span v-else-if="usuario.estadoRelacion === 'PETICION_RECIBIDA'" class="status-badge received">
-                <ion-icon :icon="mailOpen"></ion-icon>
-                <span>Te envió solicitud</span>
-              </span>
+              <button 
+                v-else-if="usuario.estadoRelacion === 'PETICION_RECIBIDA'"
+                @click="responderPeticion(usuario.peticionId, true)"
+                class="btn btn-accept"
+                :disabled="sendingRequest"
+              >
+                <ion-icon :icon="checkmark"></ion-icon>
+                <span>Aceptar</span>
+              </button>
               
-              <span v-else-if="usuario.estadoRelacion === 'AMISTAD_EXISTENTE'" class="status-badge friends">
+              <button 
+                v-else-if="usuario.estadoRelacion === 'AMISTAD_EXISTENTE'"
+                class="btn btn-friends"
+                disabled
+              >
                 <ion-icon :icon="people"></ion-icon>
-                <span>Ya son amigos</span>
-              </span>
+                <span>Amigos</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <div v-if="searchTerm && !loading && usuariosEncontrados.length === 0" class="no-results fade-in">
-          <ion-icon :icon="searchOutline" size="large"></ion-icon>
+        <div v-else-if="searchPerformed && !loading" class="no-results fade-in">
+          <ion-icon :icon="searchCircle" size="large"></ion-icon>
           <p>No se encontraron usuarios con ese término</p>
         </div>
       </div>
@@ -102,10 +136,14 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
-              <div class="user-avatar">
-                <img v-if="peticion.skinRemitente" :src="peticion.skinRemitente" :alt="peticion.usernameRemitente" />
-                <ion-icon v-else :icon="personCircle" size="large"></ion-icon>
-              </div>
+              <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+              <ProfileAvatar
+                :profile-image="peticion.fotoPerfilRemitente"
+                :username="peticion.usernameRemitente"
+                :size="48"
+                :is-verified="peticion.emailVerificado"
+                :show-verification="false"
+              />
               <div class="request-details">
                 <h3>{{ peticion.usernameRemitente }}</h3>
                 <p>{{ peticion.emailRemitente }}</p>
@@ -151,13 +189,17 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
-              <div class="user-avatar">
-                <img v-if="peticion.skinRemitente" :src="peticion.skinRemitente" :alt="peticion.usernameRemitente" />
-                <ion-icon v-else :icon="personCircle" size="large"></ion-icon>
-              </div>
+              <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+              <ProfileAvatar
+                :profile-image="peticion.fotoPerfilDestinatario"
+                :username="peticion.usernameDestinatario"
+                :size="48"
+                :is-verified="peticion.emailVerificado"
+                :show-verification="false"
+              />
               <div class="request-details">
-                <h3>{{ peticion.usernameRemitente }}</h3>
-                <p>{{ peticion.emailRemitente }}</p>
+                <h3>{{ peticion.usernameDestinatario }}</h3>
+                <p>{{ peticion.emailDestinatario }}</p>
                 <small>{{ formatearFecha(peticion.fechaCreacion) }}</small>
               </div>
             </div>
@@ -166,8 +208,8 @@
               <span :class="['status-badge', peticion.estado.toLowerCase()]">
                 <ion-icon 
                   :icon="peticion.estado === 'PENDIENTE' ? hourglass : 
-                         peticion.estado === 'ACEPTADA' ? checkmarkCircle : 
-                         closeCircle"
+                         peticion.estado === 'ACEPTADA' ? checkmarkCircle : close"
+                  class="status-icon"
                 ></ion-icon>
                 <span>{{ getEstadoText(peticion.estado) }}</span>
               </span>
@@ -180,33 +222,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { 
-  IonSearchbar, 
-  IonSpinner, 
-  IonIcon,
-  alertController,
-  toastController
+  alertController, 
+  toastController 
 } from '@ionic/vue'
 import { 
+  search, 
   personAdd, 
-  personCircle, 
   people, 
-  searchOutline, 
-  mailOpen,
-  paperPlane,
-  checkmark,
-  close,
+  time, 
+  checkmark, 
+  close, 
+  mail, 
+  mailOpen, 
+  paperPlane, 
+  personCircle, 
+  searchCircle, 
+  sync,
   checkmarkCircle,
-  closeCircle,
   hourglass
 } from 'ionicons/icons'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
-
-// Composables
-const { usuario, token, isAuthenticated, getHeaders } = useAuth()
-const { isDarkMode } = useTheme()
+import ProfileAvatar from '@/ui/ProfileAvatar.vue' // Importar ProfileAvatar
 
 // Props
 const props = defineProps({
@@ -216,9 +255,13 @@ const props = defineProps({
   },
   apiBaseUrl: {
     type: String,
-    default: 'http://192.168.1.234:8090/GameConnect'
+    required: true
   }
 })
+
+// Composables
+const { isAuthenticated, token, getHeaders } = useAuth()
+const { isDarkMode } = useTheme()
 
 // Estado reactivo
 const activeTab = ref('search')
@@ -229,43 +272,58 @@ const peticionesEnviadas = ref([])
 const loading = ref(false)
 const sendingRequest = ref(false)
 const respondingRequest = ref(false)
+const searchPerformed = ref(false)
 const isMounted = ref(false)
 
-// Configuración de tabs
-const tabs = computed(() => [
-  {
-    id: 'search',
-    label: 'Buscar',
-    icon: searchOutline,
-    badge: null
-  },
-  {
-    id: 'received',
-    label: 'Recibidas',
-    icon: mailOpen,
-    badge: peticionesRecibidas.value.length > 0 ? peticionesRecibidas.value.length : null
-  },
-  {
-    id: 'sent',
-    label: 'Enviadas',
-    icon: paperPlane,
-    badge: null
-  }
-])
+// Cargar peticiones recibidas
+const cargarPeticionesRecibidas = async () => {
+  if (!isAuthenticated.value) return
 
-// Métodos (mantienen la misma lógica)
+  try {
+    const response = await fetch(
+      `${props.apiBaseUrl}/usuario/${props.usuarioActualId}/peticiones-recibidas`,
+      {
+        headers: getHeaders()
+      }
+    )
+
+    if (response.ok) {
+      peticionesRecibidas.value = await response.json()
+      console.log('Peticiones recibidas:', peticionesRecibidas.value)
+    }
+  } catch (error) {
+    console.error('Error al cargar peticiones recibidas:', error)
+  }
+}
+
+// Cargar peticiones enviadas
+const cargarPeticionesEnviadas = async () => {
+  if (!isAuthenticated.value) return
+
+  try {
+    const response = await fetch(
+      `${props.apiBaseUrl}/usuario/${props.usuarioActualId}/peticiones-enviadas`,
+      {
+        headers: getHeaders()
+      }
+    )
+
+    if (response.ok) {
+      peticionesEnviadas.value = await response.json()
+      console.log('Peticiones enviadas:', peticionesEnviadas.value)
+    }
+  } catch (error) {
+    console.error('Error al cargar peticiones enviadas:', error)
+  }
+}
+
+// Buscar usuarios
 const buscarUsuarios = async () => {
-  if (!searchTerm.value.trim()) {
-    usuariosEncontrados.value = []
-    return
-  }
-
-  if (!isAuthenticated.value) {
-    mostrarToast('Debes iniciar sesión para buscar usuarios', 'danger')
-    return
-  }
-
+  if (!searchTerm.value.trim() || !isAuthenticated.value) return
+  
   loading.value = true
+  searchPerformed.value = true
+  
   try {
     const response = await fetch(
       `${props.apiBaseUrl}/usuario/buscar?termino=${encodeURIComponent(searchTerm.value)}&usuarioActualId=${props.usuarioActualId}`,
@@ -276,6 +334,7 @@ const buscarUsuarios = async () => {
     
     if (response.ok) {
       usuariosEncontrados.value = await response.json()
+      console.log('Usuarios encontrados:', usuariosEncontrados.value)
     } else if (response.status === 401) {
       mostrarToast('Sesión expirada. Por favor, inicia sesión nuevamente', 'danger')
     } else {
@@ -374,12 +433,14 @@ const responderPeticion = async (peticionId, aceptar) => {
               if (aceptar) {
                 mostrarToast('¡Solicitud aceptada! Se ha creado un chat automáticamente.', 'success')
               } else {
-                mostrarToast('Solicitud rechazada', 'medium')
+                mostrarToast('Solicitud rechazada', 'success')
               }
+              
+              // Recargar las listas
               await cargarPeticionesRecibidas()
-              if (usuariosEncontrados.value.length > 0) {
-                await buscarUsuarios()
-              }
+              await cargarPeticionesEnviadas()
+              await buscarUsuarios() // Actualizar si el usuario estaba en la búsqueda
+              
             } else if (response.status === 401) {
               mostrarToast('Sesión expirada. Por favor, inicia sesión nuevamente', 'danger')
             } else {
@@ -396,52 +457,16 @@ const responderPeticion = async (peticionId, aceptar) => {
       }
     ]
   })
-  
   await alert.present()
 }
 
-const cargarPeticionesRecibidas = async () => {
-  if (!isAuthenticated.value) return
-
-  try {
-    const response = await fetch(
-      `${props.apiBaseUrl}/usuario/${props.usuarioActualId}/peticiones-recibidas`,
-      { headers: getHeaders() }
-    )
-    
-    if (response.ok) {
-      peticionesRecibidas.value = await response.json()
-    } else if (response.status === 401) {
-      mostrarToast('Sesión expirada. Por favor, inicia sesión nuevamente', 'danger')
-    }
-  } catch (error) {
-    console.error('Error:', error)
-  }
-}
-
-const cargarPeticionesEnviadas = async () => {
-  if (!isAuthenticated.value) return
-
-  try {
-    const response = await fetch(
-      `${props.apiBaseUrl}/usuario/${props.usuarioActualId}/peticiones-enviadas`,
-      { headers: getHeaders() }
-    )
-    
-    if (response.ok) {
-      peticionesEnviadas.value = await response.json()
-    } else if (response.status === 401) {
-      mostrarToast('Sesión expirada. Por favor, inicia sesión nuevamente', 'danger')
-    }
-  } catch (error) {
-    console.error('Error:', error)
-  }
-}
-
-const formatearFecha = (fechaStr) => {
-  const fecha = new Date(fechaStr)
+// Funciones auxiliares
+const formatearFecha = (fechaString) => {
+  if (!fechaString) return 'Fecha desconocida'
+  
+  const fecha = new Date(fechaString)
   const ahora = new Date()
-  const diferencia = ahora - fecha
+  const diferencia = ahora.getTime() - fecha.getTime()
   
   const minutos = Math.floor(diferencia / (1000 * 60))
   const horas = Math.floor(diferencia / (1000 * 60 * 60))
@@ -497,7 +522,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* Variables CSS para temas *//* Variables CSS para temas */
+/* Variables CSS para temas */
 .friend-management {
   --bg-primary: #ffffff;
   --bg-secondary: #f8fafc;
@@ -520,6 +545,20 @@ onMounted(async () => {
   --danger-hover: #dc2626;
   --warning-color: #f59e0b;
   --warning-hover: #d97706;
+  
+  /* Contenedor principal */
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+  height: 100%;
 }
 
 .friend-management.dark-mode {
@@ -544,224 +583,155 @@ onMounted(async () => {
   --warning-hover: #f59e0b;
 }
 
-.friend-management {
-  padding: 20px;
-  max-width: 900px;
-  margin: 0 auto;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all 0.3s ease;
-  min-height: 100vh;
-  opacity: 0;
-  transform: translateY(20px);
-  animation: mountFadeIn 0.6s ease-out forwards;
-}
-
-/* Animación principal de montaje */
-@keyframes mountFadeIn {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Tabs mejoradas con animación escalonada */
+/* Tabs de navegación */
 .tabs {
   display: flex;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  padding: 6px;
-  margin-bottom: 24px;
-  gap: 4px;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--border-color);
+  gap: 12px;
+  background-color: var(--bg-secondary);
+  padding: 12px;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 1;
 }
 
 .tab-button {
   flex: 1;
+  padding: 16px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 20px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text-muted);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+  gap: 8px;
   position: relative;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-/* Animación escalonada para tabs */
-.friend-management.mounted .tab-button {
-  animation: slideInFade 0.4s ease-out forwards;
-  animation-delay: var(--delay);
-}
-
-@keyframes slideInFade {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.tab-button:hover:not(.active) {
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  transform: translateY(-1px);
 }
 
 .tab-button.active {
-  background: var(--primary-color);
-  color: white;
+  background-color: var(--bg-card);
+  color: var(--primary-color);
   box-shadow: var(--shadow);
   transform: translateY(-2px);
 }
 
-.tab-button.active::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 100%);
-  pointer-events: none;
+.tab-button:hover:not(.active) {
+  background-color: rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.tab-button ion-icon {
+  font-size: 18px;
 }
 
 .badge {
-  background: var(--danger-color);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: var(--danger-color);
   color: white;
-  border-radius: 20px;
-  padding: 4px 10px;
-  font-size: 11px;
+  font-size: 10px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
   font-weight: 700;
-  min-width: 20px;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
-  animation: badgePulse 2s infinite;
-}
-
-@keyframes badgePulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
 }
 
 /* Contenido principal */
-.tab-content {
-  min-height: 500px;
+.content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
 }
 
-.search-container {
-  margin-bottom: 24px;
-  opacity: 0;
-  animation: fadeInUp 0.5s ease-out 0.3s forwards;
-}
-
-/* Estados de carga y vacío mejorados */
-.loading {
+/* Sección de búsqueda */
+.search-box {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 60px 20px;
-  color: var(--text-muted);
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.loading ion-spinner {
-  --color: var(--primary-color);
-}
-
-.empty-state,
-.no-results {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 80px 20px;
-  color: var(--text-muted);
-  text-align: center;
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  border: 2px dashed var(--border-color);
-}
-
-.empty-state ion-icon,
-.no-results ion-icon {
-  color: var(--text-muted);
-  opacity: 0.6;
-}
-
-.empty-state p,
-.no-results p {
-  margin: 0;
+.search-box input {
+  flex: 1;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius) 0 0 var(--radius);
   font-size: 16px;
-  font-weight: 500;
+  background-color: var(--bg-card);
+  color: var(--text-primary);
 }
 
-/* Animaciones suaves para estados */
-.fade-in {
-  animation: fadeIn 0.4s ease-out;
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary-color);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.search-box input::placeholder {
+  color: var(--text-muted);
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.search-button {
+  padding: 0 20px;
+  border: none;
+  background-color: var(--primary-color);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s ease;
 }
 
-/* Cards mejoradas con animación suave */
+.search-button:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.search-button:disabled {
+  background-color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.search-button ion-icon {
+  font-size: 20px;
+}
+
+/* Listas de usuarios y peticiones */
 .users-list,
 .requests-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .user-card,
 .request-card {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   padding: 20px;
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  background-color: var(--bg-card);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
+  transition: all 0.3s ease;
   border: 1px solid var(--border-color);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
   opacity: 0;
-  transform: translateY(15px);
-  animation: cardSlideIn 0.4s ease-out forwards;
-  animation-delay: var(--delay);
-}
-
-@keyframes cardSlideIn {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  transform: translateY(20px);
+  animation: fadeInUp 0.5s forwards;
+  animation-delay: var(--delay, 0s);
 }
 
 .user-card:hover,
@@ -770,261 +740,210 @@ onMounted(async () => {
   transform: translateY(-2px);
 }
 
-.user-card::before,
-.request-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--primary-color), var(--success-color));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.user-card:hover::before,
-.request-card:hover::before {
-  opacity: 1;
-}
-
 .user-info,
 .request-info {
   display: flex;
   align-items: center;
   gap: 16px;
-  flex: 1;
-}
-
-/* Avatar mejorado */
-.user-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--primary-color), var(--success-color));
-  position: relative;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.user-avatar::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  z-index: 1;
-}
-
-.user-avatar img,
-.user-avatar ion-icon {
-  position: relative;
-  z-index: 2;
-}
-
-.user-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-}
-
-.user-details,
-.request-details {
-  flex: 1;
 }
 
 .user-details h3,
 .request-details h3 {
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.2;
 }
 
 .user-details p,
 .request-details p {
-  margin: 0 0 4px 0;
+  margin: 0;
   font-size: 14px;
   color: var(--text-secondary);
-  font-weight: 500;
 }
 
 .request-details small {
-  font-size: 12px;
+  display: block;
+  margin-top: 4px;
   color: var(--text-muted);
-  font-weight: 400;
+  font-size: 12px;
 }
 
-/* Botones mejorados */
 .user-actions,
-.request-actions,
-.request-status {
+.request-actions {
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 8px;
 }
 
+.request-status {
+  text-align: center;
+}
+
+/* Botones */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px 20px;
+  padding: 10px 20px;
   border: none;
   border-radius: var(--radius);
   font-weight: 600;
-  font-size: 14px;
-  text-decoration: none;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  white-space: nowrap;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   min-width: 120px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  justify-content: center;
 }
 
-.btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  transition: left 0.6s ease;
+.btn ion-icon {
+  font-size: 18px;
 }
 
-.btn:hover::before {
-  left: 100%;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-}
-
-.btn:disabled::before {
-  display: none;
-}
-
-.btn:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-}
-
-.btn:not(:disabled):active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Variantes de botones */
 .btn-primary {
-  background: var(--primary-color);
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background-color: var(--primary-hover);
+  transform: translateY(-2px);
 }
 
 .btn-accept {
-  background: var(--success-color);
+  background-color: var(--success-color);
   color: white;
 }
 
 .btn-accept:hover:not(:disabled) {
-  background: var(--success-hover);
+  background-color: var(--success-hover);
+  transform: translateY(-2px);
 }
 
 .btn-reject {
-  background: var(--danger-color);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .btn-reject:hover:not(:disabled) {
-  background: var(--danger-hover);
+  background-color: var(--danger-hover);
+  transform: translateY(-2px);
 }
 
-/* Status badges mejorados */
+.btn-friends {
+  background-color: var(--text-muted);
+  color: white;
+}
+
+.btn-disabled {
+  background-color: var(--text-muted);
+  color: white;
+  cursor: not-allowed;
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Status badges */
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 10px 16px;
   border-radius: var(--radius);
   font-weight: 600;
-  font-size: 13px;
-  white-space: nowrap;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  position: relative;
-  overflow: hidden;
-  animation: statusSlideIn 0.4s ease-out;
-}
-
-@keyframes statusSlideIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.status-badge.sent {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-  color: white;
-}
-
-.status-badge.received {
-  background: linear-gradient(135deg, var(--warning-color), var(--warning-hover));
-  color: white;
-}
-
-.status-badge.friends {
-  background: linear-gradient(135deg, var(--success-color), var(--success-hover));
-  color: white;
+  font-size: 14px;
 }
 
 .status-badge.pendiente {
-  background: linear-gradient(135deg, var(--warning-color), var(--warning-hover));
+  background-color: var(--warning-color);
   color: white;
 }
 
 .status-badge.aceptada {
-  background: linear-gradient(135deg, var(--success-color), var(--success-hover));
+  background-color: var(--success-color);
   color: white;
 }
 
 .status-badge.rechazada {
-  background: linear-gradient(135deg, var(--danger-color), var(--danger-hover));
+  background-color: var(--text-muted);
   color: white;
 }
 
-/* Efectos de shimmer para estados de carga */
-.status-badge.pendiente::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-  animation: shimmer 2s infinite;
+.status-icon {
+  font-size: 16px;
 }
 
-@keyframes shimmer {
+/* Empty states */
+.empty-state,
+.no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  text-align: center;
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+  animation-delay: 0.2s;
+}
+
+.empty-state ion-icon,
+.no-results ion-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+}
+
+.empty-state p,
+.no-results p {
+  font-size: 16px;
+  margin: 0;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+.friend-management.mounted .fade-in {
+  animation-play-state: running;
+}
+
+/* Animación de carga */
+.loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(to right, var(--primary-color), var(--success-color));
+  transform: translateX(-100%);
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
   0% { left: -100%; }
   100% { left: 100%; }
 }
@@ -1069,11 +988,6 @@ onMounted(async () => {
   .btn {
     flex: 1;
     min-width: auto;
-  }
-  
-  .user-avatar {
-    width: 48px;
-    height: 48px;
   }
   
   .empty-state,
