@@ -7,7 +7,7 @@
   "proxies": [
     {
       "path": "/api",
-      "proxyUrl": "http://192.168.1.234:8090"
+      "proxyUrl": "https://gameconnect-latest.onrender.com"
     }
   ]
 }

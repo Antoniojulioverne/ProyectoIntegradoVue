@@ -51,7 +51,7 @@ const userStats = ref<UserStats>({
   emailVerificado: false // ← Agregado: faltaba este campo
 });
 
-const API_BASE_URL = 'http://192.168.1.234:8090/auth';
+const API_BASE_URL = 'https://gameconnect-latest.onrender.com/auth';
 
 export function useAuth() {
   const isAuthenticated = computed(() => {
@@ -460,6 +460,15 @@ export function useAuthExtended() {
       isLoading.value = false;
     }
   };
+  const updateUserSkin = (newSkin: string): void => {
+  if (usuario.value && (newSkin === 'red' || newSkin === 'blue')) {
+    // Actualizar el usuario en memoria y localStorage
+    usuario.value.skin = newSkin;
+    localStorage.setItem('usuario', JSON.stringify(usuario.value));
+    
+    console.log('🎨 Skin actualizada:', newSkin);
+  }
+};
   
   return {
     isLoading,
@@ -469,6 +478,7 @@ export function useAuthExtended() {
     solicitarRecuperacion,
     validarTokenRecuperacion,
     restablecerContrasena,
-    showToast
+    showToast,
+    updateUserSkin,
   };
 }

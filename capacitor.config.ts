@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
    server: {
     // CRÍTICO: Permitir contenido HTTP desde HTTPS
     allowNavigation: [
-      'http://192.168.1.234:8090',
+      'https://gameconnect-latest.onrender.com',
       'http://192.168.1.234:*',
       'http://localhost:8090',
       'http://10.0.2.2:8090' // Para emulador Android

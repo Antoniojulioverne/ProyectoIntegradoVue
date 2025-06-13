@@ -1,7 +1,7 @@
 // chatApi.ts - Versión corregida
 import axios, { AxiosInstance } from "axios";
 
-const baseUrl = "http://192.168.1.234:8090/GameConnect/chat";
+const baseUrl = "https://gameconnect-latest.onrender.com/GameConnect/chat";
 
 // Función para obtener el token
 function getToken(): string {

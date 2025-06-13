@@ -138,7 +138,7 @@
             <div class="request-info">
               <!-- Usar ProfileAvatar para mostrar foto de perfil -->
               <ProfileAvatar
-                :profile-image="peticion.fotoPerfilRemitente"
+                :profile-image="peticion.fotoPerfil"
                 :username="peticion.usernameRemitente"
                 :size="48"
                 :is-verified="peticion.emailVerificado"

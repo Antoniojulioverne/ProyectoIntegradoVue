@@ -54,7 +54,7 @@
               <FriendManagement 
                 v-if="usuario?.usuarioId"
                 :usuario-actual-id="usuario.usuarioId"
-                :api-base-url="'http://192.168.1.234:8090/GameConnect'"
+                :api-base-url="'https://gameconnect-latest.onrender.com/GameConnect'"
               />
             </div>
             
@@ -64,7 +64,7 @@
                 v-if="usuario?.usuarioId && usuario?.username"
                 :usuario-actual-id="usuario.usuarioId"
                 :current-username="usuario.username"
-                :api-base-url="'http://192.168.1.234:8090/GameConnect'"
+                :api-base-url="'https://gameconnect-latest.onrender.com/GameConnect'"
               />
             </div>
           </div>

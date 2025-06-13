@@ -14,15 +14,6 @@
             </p>
           </div>
         </div>
-
-        <ion-buttons slot="end">
-          <ion-button fill="clear" class="header-btn">
-            <ion-icon name="videocam-outline"></ion-icon>
-          </ion-button>
-          <ion-button fill="clear" class="header-btn">
-            <ion-icon name="call-outline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 

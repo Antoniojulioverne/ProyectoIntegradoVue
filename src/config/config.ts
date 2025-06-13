@@ -2,7 +2,7 @@
 export const config = {
   // API Configuration
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://192.168.1.234:8090',
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://gameconnect-latest.onrender.com',
     endpoints: {
       gameConnect: import.meta.env.VITE_API_ENDPOINT || '/GameConnect',
       auth: import.meta.env.VITE_AUTH_ENDPOINT || '/auth',

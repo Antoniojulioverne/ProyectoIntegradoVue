@@ -74,7 +74,7 @@ import { useAuth } from '@/composables/useAuth';
 import { useAuthExtended } from '@/composables/useAuth';
 
 // Endpoint para el login
-const LOGIN_ENDPOINT = 'http://192.168.1.234:8090/auth/login';
+const LOGIN_ENDPOINT = 'https://gameconnect-latest.onrender.com/auth/login';
 
 // Estado reactivo
 const credentials = ref({

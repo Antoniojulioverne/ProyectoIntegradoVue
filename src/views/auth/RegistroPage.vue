@@ -61,7 +61,7 @@ import {
   toastController, loadingController
 } from '@ionic/vue';
 
-const REGISTER_ENDPOINT = 'http://192.168.1.234:8090/auth/registro';
+const REGISTER_ENDPOINT = 'https://gameconnect-latest.onrender.com/auth/registro';
 
 const userData = ref({
   username: '',
