@@ -261,7 +261,9 @@ const toastMessage = ref('');
 const toastColor = ref('success');
 
 // Computed
-const currentUserId = computed(() => usuario.value?.usuarioId);
+const currentUserId = computed((): number => {
+  return usuario.value?.usuarioId || 0;
+});
 
 const connectionStatusClass = computed(() => {
   if (connectionStatus.isConnected) return 'gs-connected';
@@ -276,7 +278,7 @@ const connectionIcon = computed(() => {
 });
 
 // Methods
-const getProfileImageSrc = (fotoPerfil: string | null): string | null => {
+const getProfileImageSrc = (fotoPerfil: string | null | undefined): string | null => {
   if (!fotoPerfil) return null;
   
   // Si ya es una URL completa

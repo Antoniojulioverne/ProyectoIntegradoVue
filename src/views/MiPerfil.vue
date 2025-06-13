@@ -3,7 +3,7 @@
     <ion-header class="custom-header">
       <ion-toolbar class="custom-toolbar">
         <ion-buttons slot="start">
-         <ion-menu-button auto-hide="false"></ion-menu-button>
+         <ion-menu-button :auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="page-title">
           <div class="title-container">
