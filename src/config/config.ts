@@ -15,7 +15,7 @@ export const config = {
       return `${this.baseUrl}${this.endpoints.auth}`;
     },
     get wsUrl() {
-      return `ws://${this.baseUrl.replace(/^https?:\/\//, '')}${this.endpoints.ws}`;
+      return `wss://${this.baseUrl.replace(/^https?:\/\//, '')}${this.endpoints.ws}`;
     },
     timeout: 15000
   },
