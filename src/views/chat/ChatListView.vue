@@ -278,8 +278,8 @@ const connectionIcon = computed(() => {
 });
 
 // Methods
-const getProfileImageSrc = (fotoPerfil: string | null | undefined): string | null => {
-  if (!fotoPerfil) return null;
+const getProfileImageSrc = (fotoPerfil: string | null | undefined): string | undefined => {
+  if (!fotoPerfil) return undefined; // Cambiar de null a undefined
   
   // Si ya es una URL completa
   if (fotoPerfil.startsWith('http://') || fotoPerfil.startsWith('https://')) {
