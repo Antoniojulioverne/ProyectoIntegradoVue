@@ -73,7 +73,7 @@ function getAuthToken(): string | null {
 
 // Construir URL con token como query parameter
 function buildWebSocketURL(): string {
-  const baseURL = 'ws://192.168.1.234:8090/ws';
+  const baseURL = 'wss://gameconnect-latest.onrender.com/ws';
   const token = getAuthToken();
   
   if (!token) {
