@@ -19,5 +19,20 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom'
+  } ,build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Separar Ionic en su propio chunk
+          'ionic': ['@ionic/vue', '@ionic/vue-router'],
+          // Vue ecosystem
+          'vue-vendor': ['vue', 'vue-router'],
+          // Tu servicio WebSocket (si es grande)
+          'websocket': ['./src/services/websocket/WebSocketService'],
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
   }
 })
+
