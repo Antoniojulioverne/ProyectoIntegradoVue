@@ -1,4 +1,4 @@
-<!-- GestionAmigos.vue - Actualizado con fotos de perfil usando ProfileAvatar -->
+<!-- GestionAmigos.vue - Corregido para mostrar destinatarios en peticiones enviadas -->
 <template>
   <div
     class="friend-management"
@@ -51,7 +51,12 @@
           </button>
         </div>
 
-        <div v-if="usuariosEncontrados.length > 0" class="users-list">
+        <div v-if="loading" class="loading-state fade-in">
+          <ion-icon :icon="searchCircle" size="large"></ion-icon>
+          <p>Buscando usuarios...</p>
+        </div>
+
+        <div v-else-if="usuariosEncontrados.length > 0" class="users-list">
           <div 
             v-for="(usuario, index) in usuariosEncontrados" 
             :key="usuario.usuarioId"
@@ -75,18 +80,18 @@
             
             <div class="user-actions">
               <button 
-                v-if="usuario.estadoRelacion === 'SIN_RELACION'" 
+                v-if="usuario.estadoRelacion === 'SIN_RELACION'"
                 @click="enviarPeticion(usuario.usuarioId)"
                 class="btn btn-primary"
                 :disabled="sendingRequest"
               >
                 <ion-icon :icon="personAdd"></ion-icon>
-                <span>Añadir</span>
+                <span>Enviar</span>
               </button>
               
               <button 
                 v-else-if="usuario.estadoRelacion === 'PETICION_ENVIADA'"
-                class="btn btn-disabled"
+                class="btn btn-pending"
                 disabled
               >
                 <ion-icon :icon="time"></ion-icon>
@@ -136,12 +141,12 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
-              <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+              <!-- Mostrar información del REMITENTE (quien envió la petición) -->
               <ProfileAvatar
-                :profile-image="peticion.fotoPerfil"
+                :profile-image="peticion.fotopersonaRemitente"
                 :username="peticion.usernameRemitente"
                 :size="48"
-                :is-verified="peticion.emailVerificado"
+                :is-verified="true"
                 :show-verification="false"
               />
               <div class="request-details">
@@ -189,18 +194,18 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
-              <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+              <!-- *** CORREGIDO: Mostrar información del DESTINATARIO (a quien enviaste la petición) *** -->
               <ProfileAvatar
-                :profile-image="peticion.fotoPerfilDestinatario"
+                :profile-image="peticion.fotopersonaDestinatario"
                 :username="peticion.usernameDestinatario"
                 :size="48"
-                :is-verified="peticion.emailVerificado"
+                :is-verified="true"
                 :show-verification="false"
               />
               <div class="request-details">
                 <h3>{{ peticion.usernameDestinatario }}</h3>
                 <p>{{ peticion.emailDestinatario }}</p>
-                <small>{{ formatearFecha(peticion.fechaCreacion) }}</small>
+                <small>Enviada {{ formatearFecha(peticion.fechaCreacion) }}</small>
               </div>
             </div>
             
@@ -222,10 +227,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { 
   alertController, 
-  toastController 
+  toastController,
+  IonIcon
 } from '@ionic/vue'
 import { 
   search, 
@@ -237,7 +243,6 @@ import {
   mail, 
   mailOpen, 
   paperPlane, 
-  personCircle, 
   searchCircle, 
   sync,
   checkmarkCircle,
@@ -245,7 +250,7 @@ import {
 } from 'ionicons/icons'
 import { useAuth } from '@/composables/useAuth'
 import { useTheme } from '@/composables/useTheme'
-import ProfileAvatar from '@/ui/ProfileAvatar.vue' // Importar ProfileAvatar
+import ProfileAvatar from '@/ui/ProfileAvatar.vue'
 
 // Props
 const props = defineProps({
@@ -433,14 +438,13 @@ const responderPeticion = async (peticionId, aceptar) => {
               if (aceptar) {
                 mostrarToast('¡Solicitud aceptada! Se ha creado un chat automáticamente.', 'success')
               } else {
-                mostrarToast('Solicitud rechazada', 'success')
+                mostrarToast('Solicitud rechazada', 'medium')
               }
               
-              // Recargar las listas
-              await cargarPeticionesRecibidas()
-              await cargarPeticionesEnviadas()
-              await buscarUsuarios() // Actualizar si el usuario estaba en la búsqueda
-              
+              await Promise.all([
+                cargarPeticionesRecibidas(),
+                cargarPeticionesEnviadas()
+              ])
             } else if (response.status === 401) {
               mostrarToast('Sesión expirada. Por favor, inicia sesión nuevamente', 'danger')
             } else {
@@ -457,29 +461,41 @@ const responderPeticion = async (peticionId, aceptar) => {
       }
     ]
   })
+
   await alert.present()
 }
 
-// Funciones auxiliares
-const formatearFecha = (fechaString) => {
-  if (!fechaString) return 'Fecha desconocida'
+// Función helper para obtener iniciales
+const getInitials = (name) => {
+  if (!name) return '??'
+  return name.split(' ')
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
+    .substring(0, 2)
+}
+
+const formatearFecha = (fecha) => {
+  if (!fecha) return ''
   
-  const fecha = new Date(fechaString)
+  const fechaObj = new Date(fecha)
   const ahora = new Date()
-  const diferencia = ahora.getTime() - fecha.getTime()
+  const diff = ahora - fechaObj
   
-  const minutos = Math.floor(diferencia / (1000 * 60))
-  const horas = Math.floor(diferencia / (1000 * 60 * 60))
-  const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24))
+  const minutos = Math.floor(diff / (1000 * 60))
+  const horas = Math.floor(diff / (1000 * 60 * 60))
+  const dias = Math.floor(diff / (1000 * 60 * 60 * 24))
   
-  if (minutos < 60) {
+  if (minutos < 1) {
+    return 'Hace un momento'
+  } else if (minutos < 60) {
     return `Hace ${minutos} minuto${minutos !== 1 ? 's' : ''}`
   } else if (horas < 24) {
     return `Hace ${horas} hora${horas !== 1 ? 's' : ''}`
   } else if (dias < 7) {
     return `Hace ${dias} día${dias !== 1 ? 's' : ''}`
   } else {
-    return fecha.toLocaleDateString()
+    return fechaObj.toLocaleDateString()
   }
 }
 
@@ -571,58 +587,65 @@ onMounted(async () => {
   --border-color: #475569;
   --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
   --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  
-  /* Colores ajustados para modo oscuro */
-  --primary-color: #60a5fa;
-  --primary-hover: #3b82f6;
-  --success-color: #34d399;
-  --success-hover: #10b981;
-  --danger-color: #f87171;
-  --danger-hover: #ef4444;
-  --warning-color: #fbbf24;
-  --warning-hover: #f59e0b;
 }
 
-/* Tabs de navegación */
+/* Animaciones */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.mounted .fade-in {
+  opacity: 1;
+}
+
+/* Tabs */
 .tabs {
   display: flex;
-  gap: 12px;
   background-color: var(--bg-secondary);
-  padding: 12px;
   border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  position: relative;
-  z-index: 1;
+  padding: 4px;
+  margin-bottom: 20px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .tab-button {
   flex: 1;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border: none;
-  border-radius: var(--radius);
-  background-color: transparent;
+  background: transparent;
   color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 14px;
+  border-radius: var(--radius);
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-weight: 600;
   position: relative;
 }
 
-.tab-button.active {
+.tab-button:hover {
   background-color: var(--bg-card);
-  color: var(--primary-color);
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
+  color: var(--text-primary);
 }
 
-.tab-button:hover:not(.active) {
-  background-color: rgba(0, 0, 0, 0.05);
-  transform: translateY(-1px);
+.tab-button.active {
+  background-color: var(--primary-color);
+  color: white;
+  box-shadow: var(--shadow);
 }
 
 .tab-button ion-icon {
@@ -630,71 +653,66 @@ onMounted(async () => {
 }
 
 .badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
   background-color: var(--danger-color);
   color: white;
-  font-size: 10px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
   min-width: 18px;
   height: 18px;
-  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
-  font-weight: 700;
+  margin-left: 4px;
 }
 
 /* Contenido principal */
 .content {
   flex: 1;
-  overflow: hidden;
-  position: relative;
+  overflow-y: auto;
 }
 
-/* Sección de búsqueda */
+/* Caja de búsqueda */
 .search-box {
   display: flex;
+  gap: 12px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius);
-  overflow: hidden;
 }
 
 .search-box input {
   flex: 1;
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius) 0 0 var(--radius);
-  font-size: 16px;
+  padding: 16px 20px;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
   background-color: var(--bg-card);
   color: var(--text-primary);
+  font-size: 16px;
+  transition: all 0.3s ease;
 }
 
 .search-box input:focus {
   outline: none;
   border-color: var(--primary-color);
-}
-
-.search-box input::placeholder {
-  color: var(--text-muted);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .search-button {
-  padding: 0 20px;
+  padding: 16px 20px;
   border: none;
   background-color: var(--primary-color);
   color: white;
+  border-radius: var(--radius);
   cursor: pointer;
+  transition: all 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.3s ease;
 }
 
 .search-button:hover:not(:disabled) {
   background-color: var(--primary-hover);
+  transform: translateY(-2px);
 }
 
 .search-button:disabled {
@@ -706,7 +724,31 @@ onMounted(async () => {
   font-size: 20px;
 }
 
-/* Listas de usuarios y peticiones */
+/* Estados vacíos y de carga */
+.empty-state,
+.no-results,
+.loading-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.empty-state ion-icon,
+.no-results ion-icon,
+.loading-state ion-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-state p,
+.no-results p,
+.loading-state p {
+  font-size: 18px;
+  margin: 0;
+}
+
+/* Listas */
 .users-list,
 .requests-list {
   display: flex;
@@ -714,7 +756,6 @@ onMounted(async () => {
   gap: 16px;
   max-height: 500px;
   overflow-y: auto;
-  padding-right: 4px;
 }
 
 .user-card,
@@ -769,16 +810,6 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.user-actions,
-.request-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.request-status {
-  text-align: center;
-}
-
 /* Botones */
 .btn {
   padding: 10px 20px;
@@ -829,160 +860,103 @@ onMounted(async () => {
   transform: translateY(-2px);
 }
 
-.btn-friends {
-  background-color: var(--text-muted);
-  color: white;
-}
-
-.btn-disabled {
-  background-color: var(--text-muted);
+.btn-pending {
+  background-color: var(--warning-color);
   color: white;
   cursor: not-allowed;
+}
+
+.btn-friends {
+  background-color: var(--success-color);
+  color: white;
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .btn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* Status badges */
 .status-badge {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-radius: var(--radius);
+  font-size: 12px;
   font-weight: 600;
-  font-size: 14px;
+  text-transform: uppercase;
 }
 
 .status-badge.pendiente {
-  background-color: var(--warning-color);
-  color: white;
+  background-color: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color);
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .status-badge.aceptada {
-  background-color: var(--success-color);
-  color: white;
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .status-badge.rechazada {
-  background-color: var(--text-muted);
-  color: white;
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color);
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .status-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
-/* Empty states */
-.empty-state,
-.no-results {
+/* Acciones de peticiones */
+.user-actions,
+.request-actions {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: var(--text-muted);
+  gap: 8px;
+}
+
+.request-status {
   text-align: center;
-  opacity: 0;
-  animation: fadeIn 0.5s forwards;
-  animation-delay: 0.2s;
 }
 
-.empty-state ion-icon,
-.no-results ion-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  color: var(--text-secondary);
-}
-
-.empty-state p,
-.no-results p {
-  font-size: 16px;
-  margin: 0;
-}
-
-/* Animaciones */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.fade-in {
-  opacity: 0;
-  animation: fadeIn 0.5s forwards;
-  animation-delay: var(--delay, 0s);
-}
-
-.friend-management.mounted .fade-in {
-  animation-play-state: running;
-}
-
-/* Animación de carga */
-.loading-bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 3px;
-  width: 100%;
-  background: linear-gradient(to right, var(--primary-color), var(--success-color));
-  transform: translateX(-100%);
-  animation: loading 1.5s infinite;
-}
-
-@keyframes loading {
-  0% { left: -100%; }
-  100% { left: 100%; }
-}
-
-/* Responsividad mejorada */
+/* Responsive design */
 @media (max-width: 768px) {
   .friend-management {
     padding: 16px;
+    gap: 16px;
   }
   
   .tabs {
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
+    margin-bottom: 16px;
   }
   
   .tab-button {
-    padding: 16px;
+    padding: 10px 12px;
+    font-size: 14px;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .tab-button ion-icon {
     font-size: 16px;
   }
   
   .user-card,
   .request-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
     padding: 16px;
-  }
-  
-  .user-info,
-  .request-info {
-    justify-content: center;
-    text-align: center;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
   }
   
   .user-actions,
   .request-actions {
+    width: 100%;
     justify-content: center;
-    flex-wrap: wrap;
   }
   
   .btn {
@@ -990,86 +964,71 @@ onMounted(async () => {
     min-width: auto;
   }
   
-  .empty-state,
-  .no-results {
-    padding: 40px 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .friend-management {
-    padding: 12px;
+  .search-box {
+    flex-direction: column;
   }
   
-  .user-details h3,
-  .request-details h3 {
-    font-size: 16px;
-  }
-  
-  .user-details p,
-  .request-details p {
-    font-size: 13px;
-  }
-  
-  .btn {
-    padding: 10px 16px;
-    font-size: 13px;
-  }
-  
-  .status-badge {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-}
-
-/* Mejoras de accesibilidad */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Focus states mejorados */
-.tab-button:focus-visible,
-.btn:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-/* Estados de hover más suaves en dispositivos táctiles */
-@media (hover: hover) {
-  .user-card:hover,
-  .request-card:hover {
-    transform: translateY(-4px);
-  }
-  
-  .btn:hover:not(:disabled) {
-    transform: translateY(-3px);
+  .search-button {
+    align-self: center;
+    min-width: 120px;
   }
 }
 
 /* Scrollbar personalizado */
 .users-list::-webkit-scrollbar,
 .requests-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .users-list::-webkit-scrollbar-track,
 .requests-list::-webkit-scrollbar-track {
   background: var(--bg-secondary);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .users-list::-webkit-scrollbar-thumb,
 .requests-list::-webkit-scrollbar-thumb {
   background: var(--border-color);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .users-list::-webkit-scrollbar-thumb:hover,
 .requests-list::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* Estados de hover mejorados */
+.user-card:hover .user-details h3,
+.request-card:hover .request-details h3 {
+  color: var(--primary-color);
+}
+
+/* Animación de carga */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.search-button ion-icon[icon="sync"] {
+  animation: spin 1s linear infinite;
+}
+
+/* Efectos de focus para accesibilidad */
+.tab-button:focus,
+.btn:focus,
+.search-button:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Transiciones suaves para tema oscuro */
+.friend-management * {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 </style>
