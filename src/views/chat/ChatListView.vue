@@ -448,8 +448,26 @@ const closeGroupOptions = () => {
 
 const handleLeaveGroup = async (chatId: number) => {
   try {
+    const { isConnected, leaveGroup } = useWebSocket();
+    
+    if (isConnected()) {
+      // Usar WebSocket
+      const success = await leaveGroup(chatId);
+      
+      if (success) {
+        // Dar tiempo para que llegue la confirmación via WebSocket
+        setTimeout(async () => {
+          showToastMessage('Has salido del grupo', 'success');
+          await refreshChatList();
+          closeGroupOptions();
+        }, 1000);
+        return;
+      }
+    }
+    
+    // Fallback a REST (si WebSocket falló o no está conectado)
     const response = await fetch(
-      `${config.api.fullApiUrl}/chat/${chatId}/participantes/${currentUserId.value}`,
+      `${config.api.fullApiUrl}/chat/${chatId}/salir?usuarioId=${currentUserId.value}`,
       {
         method: 'DELETE',
         headers: {
@@ -461,11 +479,13 @@ const handleLeaveGroup = async (chatId: number) => {
 
     if (response.ok) {
       showToastMessage('Has salido del grupo', 'success');
-      // Recargar lista de chats
       await refreshChatList();
     } else {
-      showToastMessage('Error al salir del grupo', 'danger');
+      const errorText = await response.text();
+      console.error('Error del servidor:', errorText);
+      showToastMessage(`Error: ${errorText}`, 'danger');
     }
+    
   } catch (error) {
     console.error('Error saliendo del grupo:', error);
     showToastMessage('Error de conexión', 'danger');

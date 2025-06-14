@@ -141,7 +141,30 @@ class WebSocketService {
       return false;
     }
   }
+public async leaveGroup(chatId: number): Promise<boolean> {
+  if (!this.isConnected() || !this.currentUserId) {
+    console.error('❌ No hay conexión o usuario no autenticado');
+    return false;
+  }
 
+  try {
+    const leaveDTO = {
+      chatId,
+      usuarioId: this.currentUserId
+    };
+
+    this.client!.publish({
+      destination: '/app/chat.salirDelGrupo',
+      body: JSON.stringify(leaveDTO)
+    });
+
+    console.log('✅ Comando salir del grupo enviado:', leaveDTO);
+    return true;
+  } catch (error) {
+    console.error('❌ Error saliendo del grupo:', error);
+    return false;
+  }
+}
   private setupClientHandlers() {
     if (!this.client) return;
 
@@ -608,7 +631,8 @@ export function useWebSocket() {
     setChatCallbacks: webSocketService.setChatCallbacks.bind(webSocketService),
     removeChatCallbacks: webSocketService.removeChatCallbacks.bind(webSocketService),
     addStatusListener: webSocketService.addStatusListener.bind(webSocketService),
-    removeStatusListener: webSocketService.removeStatusListener.bind(webSocketService)
+    removeStatusListener: webSocketService.removeStatusListener.bind(webSocketService),
+    leaveGroup: webSocketService.leaveGroup.bind(webSocketService),
   };
 }
 

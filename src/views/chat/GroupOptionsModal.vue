@@ -1,81 +1,79 @@
 <template>
-  <ion-modal :is-open="isOpen" @did-dismiss="$emit('close')" class="group-options-modal">
-    <ion-header class="gs-header">
+  <ion-modal
+    :is-open="isOpen"
+    @will-dismiss="$emit('close')"
+    class="group-options-modal"
+  >
+    <ion-header>
       <ion-toolbar>
-        <ion-title class="gs-heading-3">
-          Opciones del Grupo
-        </ion-title>
+        <ion-title>Opciones del Grupo</ion-title>
         <ion-buttons slot="end">
-          <ion-button @click="$emit('close')" fill="clear" class="gs-button gs-button-ghost">
-            <ion-icon name="close"></ion-icon>
+          <ion-button @click="$emit('close')">
+            <ion-icon slot="icon-only" name="close-outline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-
-    <ion-content class="gs-content" v-if="chat">
+    
+    <ion-content class="ion-padding">
       <div class="gs-container">
         <!-- Información del grupo -->
-        <div class="group-info-section">
+        <div v-if="chat" class="group-info-section">
           <div class="group-avatar">
             <ion-icon name="people" class="group-icon"></ion-icon>
           </div>
           <div class="group-details">
-            <h2 class="group-name">{{ chat.nombreChat || `Grupo #${chat.chatId}` }}</h2>
-            <p class="group-participants">{{ chat.participantes?.length || 0 }} participantes</p>
+            <h2 class="group-name">{{ chat.nombreChat || 'Grupo sin nombre' }}</h2>
+            <p class="group-participants">{{ participantCount }} participantes</p>
           </div>
         </div>
 
         <!-- Acciones del grupo -->
-        <div class="group-actions">
-          <!-- Editar nombre del grupo (solo admin) -->
-          <div v-if="isAdmin" class="action-section">
-            <h3 class="section-title">Administración</h3>
-            
-            <div class="action-item" @click="toggleEditName">
-              <div class="action-content">
-                <ion-icon name="create" class="action-icon"></ion-icon>
-                <div class="action-text">
-                  <span class="action-title">Editar nombre del grupo</span>
-                  <span class="action-subtitle">Cambiar el nombre visible</span>
-                </div>
+        <div v-if="chat" class="action-section">
+          <h3 class="section-title">Participantes</h3>
+          
+          <!-- Botón para mostrar/ocultar lista de participantes -->
+          <div class="action-item" @click="showParticipants = !showParticipants">
+            <div class="action-content">
+              <ion-icon name="people-outline" class="action-icon"></ion-icon>
+              <div class="action-text">
+                <div class="action-title">Ver participantes</div>
+                <div class="action-subtitle">{{ participantCount }} miembros</div>
               </div>
-              <ion-icon name="chevron-forward" class="action-arrow"></ion-icon>
             </div>
-
-            <div class="action-item" @click="showParticipants = !showParticipants">
-              <div class="action-content">
-                <ion-icon name="people" class="action-icon"></ion-icon>
-                <div class="action-text">
-                  <span class="action-title">Gestionar participantes</span>
-                  <span class="action-subtitle">Ver y administrar miembros</span>
-                </div>
-              </div>
-              <ion-icon 
-                :name="showParticipants ? 'chevron-up' : 'chevron-down'" 
-                class="action-arrow"
-              ></ion-icon>
-            </div>
+            <ion-icon 
+              :name="showParticipants ? 'chevron-up' : 'chevron-down'" 
+              class="action-arrow"
+            ></ion-icon>
           </div>
 
           <!-- Lista de participantes (expandible) -->
-          <div v-if="showParticipants" class="participants-section">
+          <div v-if="showParticipants && chat?.participantes" class="participants-section">
             <div class="participants-list">
               <div
-                v-for="participant in chat.participantes"
+                v-for="participant in (chat?.participantes || [])"
                 :key="participant.usuarioId"
                 class="participant-item"
               >
-                <div class="participant-avatar">
-                  <img v-if="participant.skin" :src="participant.skin" :alt="participant.username" />
-                  <ion-icon v-else name="person-circle" class="avatar-icon"></ion-icon>
-                </div>
+                <!-- Usar ProfileAvatar para mostrar foto de perfil -->
+                <ProfileAvatar
+                  :profile-image="participant.fotoPerfil"
+                  :username="participant.username"
+                  :size="40"
+                  :is-verified="participant.emailVerificado"
+                  :show-verification="true"
+                />
+                
                 <div class="participant-info">
-                  <span class="participant-name">{{ participant.username }}</span>
-                  <span v-if="isParticipantAdmin(participant.usuarioId)" class="admin-badge">
+                  <div class="participant-name">{{ participant.username }}</div>
+                  <div class="participant-email">{{ participant.email }}</div>
+                  <div v-if="isParticipantAdmin(participant.usuarioId)" class="admin-badge">
+                    <ion-icon name="shield-checkmark" class="badge-icon"></ion-icon>
                     Administrador
-                  </span>
+                  </div>
                 </div>
+                
+                <!-- Acciones solo para admin -->
                 <div v-if="isAdmin && participant.usuarioId !== currentUserId" class="participant-actions">
                   <ion-button 
                     v-if="!isParticipantAdmin(participant.usuarioId)"
@@ -83,6 +81,7 @@
                     fill="clear" 
                     size="small"
                     class="admin-btn"
+                    title="Hacer administrador"
                   >
                     <ion-icon name="shield-checkmark" slot="icon-only"></ion-icon>
                   </ion-button>
@@ -92,6 +91,7 @@
                     size="small"
                     color="danger"
                     class="remove-btn"
+                    title="Remover del grupo"
                   >
                     <ion-icon name="person-remove" slot="icon-only"></ion-icon>
                   </ion-button>
@@ -101,6 +101,7 @@
 
             <!-- Agregar participante (solo admin) -->
             <div v-if="isAdmin" class="add-participant-section">
+              <h4 class="subsection-title">Agregar participante</h4>
               <div class="search-container">
                 <input
                   v-model="searchTerm"
@@ -112,6 +113,7 @@
                 <ion-icon name="search-outline" class="search-icon"></ion-icon>
               </div>
 
+              <!-- Resultados de búsqueda -->
               <div v-if="searchResults.length > 0" class="search-results">
                 <div
                   v-for="user in availableUsers"
@@ -119,50 +121,76 @@
                   class="user-result"
                   @click="addParticipant(user.usuarioId)"
                 >
-                  <div class="user-avatar">
-                    <img v-if="user.skin" :src="user.skin" :alt="user.username" />
-                    <ion-icon v-else name="person-circle" class="avatar-icon"></ion-icon>
-                  </div>
+                  <!-- Usar ProfileAvatar para usuarios encontrados -->
+                  <ProfileAvatar
+                    :profile-image="user.fotoPerfil"
+                    :username="user.username"
+                    :size="32"
+                    :is-verified="user.emailVerificado"
+                    :show-verification="true"
+                  />
+                  
                   <div class="user-details">
-                    <h4 class="username">{{ user.username }}</h4>
+                    <h3 class="username">{{ user.username }}</h3>
                     <p class="email">{{ user.email }}</p>
+                    <span 
+                      v-if="user.estadoRelacion && user.estadoRelacion !== 'SIN_RELACION'" 
+                      :class="['relation-badge', relationClass(user.estadoRelacion)]"
+                    >
+                      {{ relationText(user.estadoRelacion) }}
+                    </span>
                   </div>
+                  
                   <div class="user-actions">
-                    <ion-icon name="add-circle" class="add-icon"></ion-icon>
+                    <ion-icon name="add-circle-outline" class="add-icon"></ion-icon>
                   </div>
                 </div>
+              </div>
+
+              <!-- Sin resultados -->
+              <div v-else-if="searchTerm && searchResults.length === 0" class="no-results">
+                <ion-icon name="search" class="no-results-icon"></ion-icon>
+                <p>No se encontraron usuarios para "{{ searchTerm }}"</p>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Acciones generales -->
-          <div class="action-section">
-            <h3 class="section-title">Acciones</h3>
-            
-            <div class="action-item danger-action" @click="confirmLeaveGroup">
-              <div class="action-content">
-                <ion-icon name="exit" class="action-icon danger-icon"></ion-icon>
-                <div class="action-text">
-                  <span class="action-title danger-text">Salir del grupo</span>
-                  <span class="action-subtitle">Abandonar este grupo</span>
-                </div>
+        <!-- Otras acciones del grupo -->
+        <div v-if="chat" class="action-section">
+          <h3 class="section-title">Opciones</h3>
+          
+          <div v-if="isAdmin" class="action-item" @click="showEditName = true">
+            <div class="action-content">
+              <ion-icon name="create-outline" class="action-icon"></ion-icon>
+              <div class="action-text">
+                <div class="action-title">Editar nombre del grupo</div>
               </div>
-              <ion-icon name="chevron-forward" class="action-arrow"></ion-icon>
+            </div>
+            <ion-icon name="chevron-forward" class="action-arrow"></ion-icon>
+          </div>
+
+          <div class="action-item danger-action" @click="$emit('leaveGroup', chat?.chatId)">
+            <div class="action-content">
+              <ion-icon name="exit-outline" class="action-icon danger-icon"></ion-icon>
+              <div class="action-text">
+                <div class="action-title danger-text">Salir del grupo</div>
+                <div class="action-subtitle">Ya no recibirás mensajes</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </ion-content>
 
-    <!-- Modal de editar nombre -->
-    <ion-modal :is-open="showEditName" @did-dismiss="showEditName = false">
+    <!-- Modal para editar nombre -->
+    <ion-modal :is-open="showEditName" @will-dismiss="showEditName = false">
       <ion-header>
         <ion-toolbar>
           <ion-title>Editar nombre del grupo</ion-title>
           <ion-buttons slot="end">
-            <ion-button @click="showEditName = false" fill="clear">
-              <ion-icon name="close"></ion-icon>
-            </ion-button>
+            <ion-button @click="showEditName = false">Cancelar</ion-button>
+            <ion-button @click="updateGroupName" :disabled="!newGroupName.trim()">Guardar</ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
@@ -174,41 +202,18 @@
               v-model="newGroupName"
               type="text"
               class="gs-input"
-              placeholder="Ingresa el nuevo nombre"
+              placeholder="Nombre del grupo"
               maxlength="50"
-              @keyup.enter="updateGroupName"
             />
             <div class="input-helper">
               <span class="character-count">{{ newGroupName.length }}/50</span>
             </div>
           </div>
-          <div class="form-actions">
-            <button
-              @click="updateGroupName"
-              :disabled="!newGroupName.trim() || isUpdating"
-              class="gs-button gs-button-primary"
-            >
-              <ion-spinner v-if="isUpdating" name="dots"></ion-spinner>
-              <span v-else>Guardar cambios</span>
-            </button>
-          </div>
         </div>
       </ion-content>
     </ion-modal>
 
-    <!-- Alert de confirmación -->
-    <ion-alert
-      :is-open="showConfirmLeave"
-      header="Salir del grupo"
-      :message="`¿Estás seguro de que quieres salir de '${chat?.nombreChat}'?`"
-      :buttons="[
-        { text: 'Cancelar', role: 'cancel' },
-        { text: 'Salir', handler: () => handleLeaveGroup() }
-      ]"
-      @did-dismiss="showConfirmLeave = false"
-    ></ion-alert>
-
-    <!-- Toast -->
+    <!-- Toast notifications -->
     <ion-toast
       :is-open="showToast"
       :message="toastMessage"
@@ -223,10 +228,10 @@
 import { ref, computed, watch } from 'vue';
 import {
   IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
-  IonContent, IonIcon, IonSpinner, IonAlert, IonToast
+  IonContent, IonIcon, IonToast
 } from '@ionic/vue';
-import { useApi } from '@/composables/useApi';
 import config from '@/config/config';
+import ProfileAvatar from '@/ui/ProfileAvatar.vue'; // Importar ProfileAvatar
 
 // Props & Emits
 const props = defineProps<{
@@ -241,94 +246,63 @@ const emit = defineEmits<{
   updateGroup: [];
 }>();
 
-// Composables
-const { showToast: apiShowToast } = useApi();
-
 // Estado reactivo
 const showParticipants = ref(false);
 const showEditName = ref(false);
-const showConfirmLeave = ref(false);
 const newGroupName = ref('');
-const isUpdating = ref(false);
 const searchTerm = ref('');
 const searchResults = ref<any[]>([]);
+const adminParticipants = ref<number[]>([]);
 const showToast = ref(false);
 const toastMessage = ref('');
 const toastColor = ref('success');
 
-// Datos de participantes admin (simulado - en una app real vendría del backend)
-const adminParticipants = ref<number[]>([]);
-
 // Computed
+const participantCount = computed(() => props.chat?.participantes?.length || 0);
+
 const isAdmin = computed(() => {
-  // En una app real, esto vendría del backend
-  // Por ahora, asumimos que el creador es admin
   return adminParticipants.value.includes(props.currentUserId);
 });
 
 const availableUsers = computed(() => {
-  return searchResults.value.filter(user => 
-    !props.chat?.participantes?.some((p: any) => p.usuarioId === user.usuarioId)
-  );
+  if (!props.chat?.participantes) return searchResults.value;
+  
+  const participantIds = props.chat.participantes.map((p: any) => p.usuarioId);
+  return searchResults.value.filter((user: any) => !participantIds.includes(user.usuarioId));
 });
 
 // Métodos
-const isParticipantAdmin = (userId: number): boolean => {
+const isParticipantAdmin = (userId: number) => {
   return adminParticipants.value.includes(userId);
 };
 
-const toggleEditName = () => {
-  newGroupName.value = props.chat?.nombreChat || '';
-  showEditName.value = true;
+// Métodos para relaciones (reutilizados del CreateChatModal)
+const relationClass = (relation: string) => {
+  const classes: Record<string, string> = {
+    'AMIGOS': 'friends',
+    'PENDIENTE_ENVIADA': 'pending-sent',
+    'PENDIENTE_RECIBIDA': 'pending-received',
+    'BLOQUEADO': 'blocked'
+  };
+  return classes[relation] || '';
 };
 
-const updateGroupName = async () => {
-  if (!newGroupName.value.trim() || isUpdating.value) return;
-
-  isUpdating.value = true;
-  try {
-    const response = await fetch(
-      `${config.api.fullApiUrl}/chat/${props.chat.chatId}/nombre`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nombre: newGroupName.value.trim() })
-      }
-    );
-
-    if (response.ok) {
-      showToastMessage('Nombre del grupo actualizado', 'success');
-      showEditName.value = false;
-      emit('updateGroup');
-    } else {
-      showToastMessage('Error al actualizar el nombre', 'danger');
-    }
-  } catch (error) {
-    console.error('Error actualizando nombre:', error);
-    showToastMessage('Error de conexión', 'danger');
-  } finally {
-    isUpdating.value = false;
-  }
-};
-
-const confirmLeaveGroup = () => {
-  showConfirmLeave.value = true;
-};
-
-const handleLeaveGroup = () => {
-  emit('leaveGroup', props.chat.chatId);
-  showConfirmLeave.value = false;
+const relationText = (relation: string) => {
+  const texts: Record<string, string> = {
+    'AMIGOS': 'Amigos',
+    'PENDIENTE_ENVIADA': 'Solicitud enviada',
+    'PENDIENTE_RECIBIDA': 'Solicitud recibida',
+    'BLOQUEADO': 'Bloqueado'
+  };
+  return texts[relation] || '';
 };
 
 const makeAdmin = async (userId: number) => {
   try {
     const response = await fetch(
-      `${config.api.fullApiUrl}/chat/${props.chat.chatId}/admin/${userId}`,
+      `${config.api.fullApiUrl}/chat/${props.chat.chatId}/administrador?usuarioId=${userId}&adminId=${props.currentUserId}`,
       {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
           'Content-Type': 'application/json'
@@ -343,7 +317,7 @@ const makeAdmin = async (userId: number) => {
       showToastMessage('Error al promover usuario', 'danger');
     }
   } catch (error) {
-    console.error('Error promoviendo admin:', error);
+    console.error('Error promoviendo usuario:', error);
     showToastMessage('Error de conexión', 'danger');
   }
 };
@@ -396,6 +370,38 @@ const addParticipant = async (userId: number) => {
     }
   } catch (error) {
     console.error('Error agregando participante:', error);
+    showToastMessage('Error de conexión', 'danger');
+  }
+};
+
+const updateGroupName = async () => {
+  if (!newGroupName.value.trim()) return;
+
+  try {
+    const response = await fetch(
+      `${config.api.fullApiUrl}/chat/${props.chat.chatId}/nombre`,
+      {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem(config.storage.token)}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          nombreChat: newGroupName.value.trim(),
+          adminId: props.currentUserId 
+        })
+      }
+    );
+
+    if (response.ok) {
+      showToastMessage('Nombre del grupo actualizado', 'success');
+      showEditName.value = false;
+      emit('updateGroup');
+    } else {
+      showToastMessage('Error al actualizar nombre', 'danger');
+    }
+  } catch (error) {
+    console.error('Error actualizando nombre:', error);
     showToastMessage('Error de conexión', 'danger');
   }
 };
@@ -461,6 +467,7 @@ watch(() => props.isOpen, (isOpen) => {
     showEditName.value = false;
     searchTerm.value = '';
     searchResults.value = [];
+                newGroupName.value = props.chat?.nombreChat || '';
   }
 });
 </script>
@@ -532,6 +539,13 @@ watch(() => props.isOpen, (isOpen) => {
   margin: 0 0 var(--gs-space-md) 0;
 }
 
+.subsection-title {
+  font-size: var(--gs-text-base);
+  font-weight: var(--gs-font-medium);
+  color: var(--gs-text-primary);
+  margin: var(--gs-space-lg) 0 var(--gs-space-sm) 0;
+}
+
 .action-item {
   display: flex;
   align-items: center;
@@ -548,6 +562,10 @@ watch(() => props.isOpen, (isOpen) => {
 .action-item:hover {
   border-color: var(--gs-primary-300);
   box-shadow: var(--gs-shadow-sm);
+}
+
+.action-item.danger-action {
+  border-color: var(--gs-error-200);
 }
 
 .action-item.danger-action:hover {
@@ -599,7 +617,7 @@ watch(() => props.isOpen, (isOpen) => {
 
 /* Lista de participantes */
 .participants-section {
-  margin-bottom: var(--gs-space-xl);
+  margin-top: var(--gs-space-lg);
 }
 
 .participants-list {
@@ -616,33 +634,15 @@ watch(() => props.isOpen, (isOpen) => {
   gap: var(--gs-space-md);
   padding: var(--gs-space-md);
   border-bottom: 1px solid var(--gs-border-primary);
+  transition: background-color var(--gs-transition-fast);
 }
 
 .participant-item:last-child {
   border-bottom: none;
 }
 
-.participant-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--gs-radius-full);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gs-primary-100);
-  flex-shrink: 0;
-}
-
-.participant-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-icon {
-  font-size: 1.5rem;
-  color: var(--gs-primary-500);
+.participant-item:hover {
+  background: var(--gs-bg-tertiary);
 }
 
 .participant-info {
@@ -658,13 +658,25 @@ watch(() => props.isOpen, (isOpen) => {
   color: var(--gs-text-primary);
 }
 
+.participant-email {
+  font-size: var(--gs-text-sm);
+  color: var(--gs-text-secondary);
+}
+
 .admin-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--gs-space-xs);
   font-size: var(--gs-text-xs);
   color: var(--gs-warning-600);
   background: var(--gs-warning-100);
   padding: var(--gs-space-xs) var(--gs-space-sm);
   border-radius: var(--gs-radius-md);
-  align-self: flex-start;
+  width: fit-content;
+}
+
+.badge-icon {
+  font-size: 0.875rem;
 }
 
 .participant-actions {
@@ -688,7 +700,8 @@ watch(() => props.isOpen, (isOpen) => {
 
 /* Buscar usuarios */
 .add-participant-section {
-  margin-top: var(--gs-space-lg);
+  border-top: 1px solid var(--gs-border-primary);
+  padding-top: var(--gs-space-lg);
 }
 
 .search-container {
@@ -735,18 +748,6 @@ watch(() => props.isOpen, (isOpen) => {
   box-shadow: var(--gs-shadow-sm);
 }
 
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--gs-radius-full);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gs-primary-100);
-  flex-shrink: 0;
-}
-
 .user-details {
   flex: 1;
   min-width: 0;
@@ -765,6 +766,35 @@ watch(() => props.isOpen, (isOpen) => {
   margin: 0;
 }
 
+.relation-badge {
+  font-size: var(--gs-text-xs);
+  padding: var(--gs-space-xs) var(--gs-space-sm);
+  border-radius: var(--gs-radius-sm);
+  font-weight: var(--gs-font-medium);
+  width: fit-content;
+  margin-top: var(--gs-space-xs);
+}
+
+.relation-badge.friends {
+  background: var(--gs-success-100);
+  color: var(--gs-success-600);
+}
+
+.relation-badge.pending-sent {
+  background: var(--gs-warning-100);
+  color: var(--gs-warning-600);
+}
+
+.relation-badge.pending-received {
+  background: var(--gs-info-100);
+  color: var(--gs-info-600);
+}
+
+.relation-badge.blocked {
+  background: var(--gs-error-100);
+  color: var(--gs-error-600);
+}
+
 .user-actions {
   flex-shrink: 0;
 }
@@ -772,6 +802,18 @@ watch(() => props.isOpen, (isOpen) => {
 .add-icon {
   font-size: 1.25rem;
   color: var(--gs-secondary-500);
+}
+
+.no-results {
+  text-align: center;
+  padding: var(--gs-space-xl);
+  color: var(--gs-text-secondary);
+}
+
+.no-results-icon {
+  font-size: 2rem;
+  margin-bottom: var(--gs-space-sm);
+  opacity: 0.5;
 }
 
 /* Modal de editar nombre */
@@ -800,11 +842,6 @@ watch(() => props.isOpen, (isOpen) => {
 .character-count {
   font-size: var(--gs-text-xs);
   color: var(--gs-text-tertiary);
-}
-
-.form-actions {
-  padding-top: var(--gs-space-lg);
-  border-top: 1px solid var(--gs-border-primary);
 }
 
 /* Responsive */

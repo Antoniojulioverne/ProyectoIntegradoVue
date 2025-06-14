@@ -222,9 +222,23 @@ export function useApi() {
 
   // Usuarios
   const fetchUserGames = async (userId: number): Promise<Partida[]> => {
-    console.log('📊 Obteniendo partidas del usuario:', userId);
-    
+  console.log('📊 Obteniendo partidas del usuario:', userId);
+  
+  try {
     const games = await makeRequest<Partida[]>('GET', `/usuario/${userId}/partidas`);
+    
+    // ✅ Verificar que games sea un array antes de hacer sort
+    if (!Array.isArray(games)) {
+      console.warn('⚠️ El backend no devolvió un array de partidas:', games);
+      return []; // Devolver array vacío
+    }
+    
+    // Verificar si el array está vacío
+    if (games.length === 0) {
+      console.log('ℹ️ El usuario no tiene partidas');
+      await showToast('No has jugado partidas aún');
+      return [];
+    }
     
     // Ordenar por fecha descendente
     const sortedGames = games.sort(
@@ -233,7 +247,23 @@ export function useApi() {
 
     await showToast(`Se cargaron ${sortedGames.length} partidas correctamente`);
     return sortedGames;
-  };
+    
+  } catch (error: any) {
+    console.error('❌ Error obteniendo partidas:', error);
+    
+    // ✅ Manejar específicamente el caso de "no content" (204)
+    if (error.response?.status === 204 || 
+        error.message?.includes('no tiene partidas') ||
+        error.message?.includes('NO_CONTENT')) {
+      console.log('ℹ️ Usuario sin partidas (HTTP 204)');
+      await showToast('No has jugado partidas aún');
+      return [];
+    }
+    
+    // Para otros errores, relanzar
+    throw error;
+  }
+};
 
   const fetchUserStats = async (userId: number) => {
     console.log('📈 Obteniendo estadísticas del usuario:', userId);
