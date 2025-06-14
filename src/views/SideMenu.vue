@@ -30,7 +30,7 @@
         </ion-item>
         
         <!-- Toggle de tema -->
-        <ion-item @click="toggleDarkMode" class="menu-item theme-toggle" lines="none">
+       <!-- <ion-item @click="toggleDarkMode" class="menu-item theme-toggle" lines="none">
           <ion-icon 
             slot="start"
             :name="isDarkMode ? 'sunny-outline' : 'moon-outline'"
@@ -39,7 +39,7 @@
           <ion-label class="menu-label">
             {{ isDarkMode ? 'Modo Claro' : 'Modo Oscuro' }}
           </ion-label>
-        </ion-item>
+        </ion-item>-->
       </ion-list>
     </ion-content>
     

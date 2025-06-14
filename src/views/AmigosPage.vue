@@ -3,7 +3,7 @@
     <ion-header class="custom-header">
       <ion-toolbar class="custom-toolbar">
         <ion-buttons slot="start">
-         <ion-menu-button auto-hide="false"></ion-menu-button>
+          <ion-menu-button auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="page-title">
           <div class="title-container">
@@ -15,6 +15,15 @@
     </ion-header>
     
     <ion-content class="custom-content">
+      <!-- *** AGREGAR ION-REFRESHER *** -->
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+        <ion-refresher-content
+          pulling-icon="people-circle-outline"
+          pulling-text="Desliza para actualizar amigos"
+          refreshing-spinner="circular"
+          refreshing-text="Actualizando..."
+        ></ion-refresher-content>
+      </ion-refresher>
       <!-- Contenido principal cuando hay usuario autenticado -->
       <div v-if="usuario?.usuarioId && isAuthenticated" class="main-content">
         <div class="welcome-section">
@@ -121,9 +130,11 @@ import {
   IonMenuButton,
   IonSpinner,
   IonButton,
-  IonIcon 
+  IonIcon
+  ,IonRefresherContent, IonRefresher,
+  toastController
 } from '@ionic/vue'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted} from 'vue'
 import { alertCircle, refresh, people, trophy } from 'ionicons/icons'
 import { useAuth } from '@/composables/useAuth'
 import FriendManagement from '@/views/GestionAmigos.vue'
@@ -148,6 +159,40 @@ const recargarDatos = async () => {
     dataLoaded.value = true
   }
 }
+// *** FUNCIÓN DE REFRESH CORREGIDA ***
+const handleRefresh = async (event) => {
+  try {
+    console.log('🔄 Actualizando Gestión de Amigos...')
+    
+    // Solo recargar datos del usuario
+    await cargarDatosAuth()
+    
+    const toast = await toastController.create({
+      message: '✅ Datos actualizados',
+      duration: 2000,
+      position: 'top',
+      color: 'success'
+    })
+    await toast.present()
+    
+  } catch (error) {
+    console.error('❌ Error:', error)
+    
+    const toast = await toastController.create({
+      message: '❌ Error al actualizar',
+      duration: 3000,
+      position: 'top',
+      color: 'danger'
+    })
+    await toast.present()
+    
+  } finally {
+    if (event?.target) {
+      event.target.complete()
+    }
+  }
+}
+
 
 // Cargar datos al montar el componente
 onMounted(async () => {

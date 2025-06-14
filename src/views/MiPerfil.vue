@@ -3,7 +3,7 @@
     <ion-header class="custom-header">
       <ion-toolbar class="custom-toolbar">
         <ion-buttons slot="start">
-         <ion-menu-button :auto-hide="false"></ion-menu-button>
+          <ion-menu-button :auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="page-title">
           <div class="title-container">
@@ -12,9 +12,17 @@
         </ion-title>
       </ion-toolbar>
     </ion-header>
+    
     <ion-content :fullscreen="true" class="gs-content">
-      
-
+      <!-- *** AGREGAR ION-REFRESHER *** -->
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+        <ion-refresher-content
+          pulling-icon="person-circle-outline"
+          pulling-text="Desliza para actualizar perfil"
+          refreshing-spinner="circular"
+          refreshing-text="Actualizando..."
+        ></ion-refresher-content>
+      </ion-refresher>
       <!-- Loading State -->
       <div v-if="isLoading && !hasValidData" class="gs-loading-container">
         <div class="gs-loading-spinner">
@@ -287,7 +295,7 @@ import { useRouter } from 'vue-router';
 import { useTheme } from '@/composables/useTheme';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonProgressBar, IonIcon, IonSpinner
+  IonButtons, IonMenuButton, IonProgressBar, IonIcon, IonSpinner,toastController,IonRefresher,IonRefresherContent
 } from '@ionic/vue';
 
 // Componentes reutilizables
@@ -314,6 +322,37 @@ interface EditForm {
   username: string;
   skin: string;
 }
+const handleRefresh = async (event: any) => {
+  try {
+    console.log('🔄 Actualizando Perfil...')
+    
+    // Recargar datos del perfil
+    await loadUserProfile()
+    
+    const toast = await toastController.create({
+      message: '✅ Perfil actualizado',
+      duration: 2000,
+      position: 'top',
+      color: 'success'
+    })
+    await toast.present()
+    
+  } catch (error) {
+    console.error('❌ Error actualizando perfil:', error)
+    
+    const toast = await toastController.create({
+      message: '❌ Error al actualizar perfil',
+      duration: 3000,
+      position: 'top',
+      color: 'danger'
+    })
+    await toast.present()
+    
+  } finally {
+    event.target.complete()
+  }
+}
+
 
 // Composables
 const router = useRouter();

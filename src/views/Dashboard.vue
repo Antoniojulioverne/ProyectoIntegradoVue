@@ -1,9 +1,9 @@
 <template>
   <ion-page>
-      <ion-header class="custom-header">
+    <ion-header class="custom-header">
       <ion-toolbar class="custom-toolbar">
         <ion-buttons slot="start">
-         <ion-menu-button auto-hide="false"></ion-menu-button>
+          <ion-menu-button auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="page-title">
           <div class="title-container">
@@ -12,7 +12,17 @@
         </ion-title>
       </ion-toolbar>
     </ion-header>
+    
     <ion-content class="ion-padding" :class="{ 'dark-theme': isDarkMode }">
+      <!-- *** AGREGAR ION-REFRESHER *** -->
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+        <ion-refresher-content
+          pulling-icon="stats-chart-outline"
+          pulling-text="Desliza para actualizar estadísticas"
+          refreshing-spinner="circular"
+          refreshing-text="Actualizando..."
+        ></ion-refresher-content>
+      </ion-refresher>
       <!-- Loading State -->
       <div v-if="isLoading" class="loading-container">
         <ion-spinner name="crescent"></ion-spinner>
@@ -115,7 +125,7 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton,
   IonIcon, IonContent, IonSpinner, IonSegment, IonSegmentButton,
-  IonLabel, toastController,IonMenuButton
+  IonLabel, toastController,IonMenuButton,IonRefresher,IonRefresherContent
 } from '@ionic/vue';
 import ProfileAvatar from '../ui/ProfileAvatar.vue';
 import { useApi } from '../composables/useApi';
@@ -130,6 +140,41 @@ const { fetchUserGames, fetchUserStats, fetchRankingData
  } = useApi();
 const { userStats, isAuthenticated, initializeUser, updateUserStats, updateUserGames, updateUserRank } = useAuth();
 const { isDarkMode } = useTheme();
+
+const handleRefresh = async (event) => {
+  try {
+    console.log('🔄 Actualizando Dashboard...')
+    
+    // Recargar estadísticas del usuario
+    await loadUserStats()
+    
+    // Mostrar toast de confirmación
+    const toast = await toastController.create({
+      message: '✅ Estadísticas actualizadas',
+      duration: 2000,
+      position: 'top',
+      color: 'success'
+    })
+    await toast.present()
+    
+  } catch (error) {
+    console.error('❌ Error actualizando Dashboard:', error)
+    
+    const toast = await toastController.create({
+      message: '❌ Error al actualizar estadísticas',
+      duration: 3000,
+      position: 'top',
+      color: 'danger'
+    })
+    await toast.present()
+    
+  } finally {
+    // *** IMPORTANTE: Completar el refresher ***
+    event.target.complete()
+  }
+}
+
+
 
 // State
 const isLoading = ref(true);

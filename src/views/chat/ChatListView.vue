@@ -3,7 +3,7 @@
     <ion-header class="gs-header">
       <ion-toolbar>
         <ion-buttons slot="start"> 
-           <ion-menu-button :auto-hide="false"></ion-menu-button>
+          <ion-menu-button :auto-hide="false"></ion-menu-button>
         </ion-buttons>
         <ion-title class="gs-page-title">
           <div class="gs-title-content">
@@ -18,6 +18,15 @@
     </ion-header>
 
     <ion-content class="gs-content">
+      <!-- *** AGREGAR ION-REFRESHER *** -->
+      <ion-refresher slot="fixed" @ionRefresh="handleRefresh($event)">
+        <ion-refresher-content
+          pulling-icon="chatbubbles-outline"
+          pulling-text="Desliza para actualizar chats"
+          refreshing-spinner="circular"
+          refreshing-text="Actualizando..."
+        ></ion-refresher-content>
+      </ion-refresher>
       <div class="gs-chat-container">
         <!-- Loading state -->
         <div v-if="isLoading" class="gs-loading-state">
@@ -209,7 +218,7 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, 
   IonContent, IonIcon, IonButtons, IonMenuButton, IonButton,
-  IonFab, IonFabButton, IonToast
+  IonFab, IonFabButton, IonToast,toastController,IonRefresher,IonRefresherContent
 } from '@ionic/vue';
 import { useWebSocket, type ChatMessage, type ChatNotification } from '@/services/websocket/WebSocketService';
 import { useAuth } from '@/composables/useAuth';
@@ -278,6 +287,38 @@ const connectionIcon = computed(() => {
 });
 
 // Methods
+
+const handleRefresh = async (event: any) => {
+  try {
+    console.log('🔄 Actualizando Lista de Chats...')
+    
+    // Refrescar la lista de chats
+    await refreshChatList()
+    
+    // Mostrar toast de confirmación
+    const toast = await toastController.create({
+      message: '✅ Chats actualizados',
+      duration: 2000,
+      position: 'top',
+      color: 'success'
+    })
+    await toast.present()
+    
+  } catch (error) {
+    console.error('❌ Error actualizando chats:', error)
+    
+    const toast = await toastController.create({
+      message: '❌ Error al actualizar chats',
+      duration: 3000,
+      position: 'top',
+      color: 'danger'
+    })
+    await toast.present()
+    
+  } finally {
+    event.target.complete()
+  }
+}
 const getProfileImageSrc = (fotoPerfil: string | null | undefined): string | undefined => {
   if (!fotoPerfil) return undefined; // Cambiar de null a undefined
   

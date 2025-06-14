@@ -84,7 +84,6 @@ import {
   ellipsisVertical,
   exit,
   cameraOutline,
-  // Nuevos iconos faltantes
   personCircleOutline,
   refreshOutline,
   checkmarkOutline,
@@ -97,14 +96,16 @@ import {
   timeOutline,
   trophy,
   medal,
-  
+  statsChartOutline,
+  peopleCircleOutline
 } from 'ionicons/icons';
 
 import { addIcons } from 'ionicons';
 
 // Registrar todos los iconos
 addIcons({
-  
+
+  statsChartOutline,
   trophy,
   medal,
   exit,
@@ -118,6 +119,7 @@ addIcons({
   'checkmark-circle': checkmarkCircle,
   close,
   people,
+  peopleCircleOutline,
   'add-circle-outline': addCircleOutline,
   'arrow-back': arrowBack,
   person,

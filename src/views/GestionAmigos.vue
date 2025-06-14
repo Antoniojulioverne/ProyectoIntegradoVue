@@ -64,17 +64,20 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="user-info">
+              <!-- Debug: Mostrar datos disponibles -->
+              <!-- {{ console.log('Usuario encontrado:', usuario) }} -->
+              
               <!-- Usar ProfileAvatar para mostrar foto de perfil -->
               <ProfileAvatar
                 :profile-image="usuario.fotoPerfil"
-                :username="usuario.username"
+                :username="usuario.username || usuario.nombreUsuario"
                 :size="48"
                 :is-verified="usuario.emailVerificado"
                 :show-verification="false"
               />
               <div class="user-details">
-                <h3>{{ usuario.username }}</h3>
-                <p>{{ usuario.email }}</p>
+                <h3>{{ usuario.username || usuario.nombreUsuario || 'Usuario' }}</h3>
+                <p>{{ usuario.email || 'Email no disponible' }}</p>
               </div>
             </div>
             
@@ -141,17 +144,20 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
+              <!-- Debug: Mostrar datos disponibles -->
+              <!-- {{ console.log('Petición recibida:', peticion) }} -->
+              
               <!-- Mostrar información del REMITENTE (quien envió la petición) -->
               <ProfileAvatar
-                :profile-image="peticion.fotopersonaRemitente"
-                :username="peticion.usernameRemitente"
+                :profile-image="peticion.fotopersonaRemitente || peticion.fotoPerfilRemitente"
+                :username="peticion.usernameRemitente || peticion.nombreUsuarioRemitente"
                 :size="48"
                 :is-verified="true"
                 :show-verification="false"
               />
               <div class="request-details">
-                <h3>{{ peticion.usernameRemitente }}</h3>
-                <p>{{ peticion.emailRemitente }}</p>
+                <h3>{{ peticion.usernameRemitente || peticion.nombreUsuarioRemitente || 'Usuario' }}</h3>
+                <p>{{ peticion.emailRemitente || 'Email no disponible' }}</p>
                 <small>{{ formatearFecha(peticion.fechaCreacion) }}</small>
               </div>
             </div>
@@ -194,17 +200,20 @@
             :style="{ '--delay': `${index * 0.1}s` }"
           >
             <div class="request-info">
-              <!-- *** CORREGIDO: Mostrar información del DESTINATARIO (a quien enviaste la petición) *** -->
+              <!-- Debug: Mostrar datos disponibles -->
+              <!-- {{ console.log('Petición enviada:', peticion) }} -->
+              
+              <!-- CORREGIDO: Mostrar información del DESTINATARIO (a quien enviaste la petición) -->
               <ProfileAvatar
-                :profile-image="peticion.fotopersonaDestinatario"
-                :username="peticion.usernameDestinatario"
+                :profile-image="peticion.fotopersonaDestinatario || peticion.fotoPerfilDestinatario"
+                :username="peticion.usernameDestinatario || peticion.nombreUsuarioDestinatario"
                 :size="48"
                 :is-verified="true"
                 :show-verification="false"
               />
               <div class="request-details">
-                <h3>{{ peticion.usernameDestinatario }}</h3>
-                <p>{{ peticion.emailDestinatario }}</p>
+                <h3>{{ peticion.usernameDestinatario || peticion.nombreUsuarioDestinatario || 'Usuario' }}</h3>
+                <p>{{ peticion.emailDestinatario || 'Email no disponible' }}</p>
                 <small>Enviada {{ formatearFecha(peticion.fechaCreacion) }}</small>
               </div>
             </div>
@@ -465,16 +474,6 @@ const responderPeticion = async (peticionId, aceptar) => {
   await alert.present()
 }
 
-// Función helper para obtener iniciales
-const getInitials = (name) => {
-  if (!name) return '??'
-  return name.split(' ')
-    .map(word => word.charAt(0))
-    .join('')
-    .toUpperCase()
-    .substring(0, 2)
-}
-
 const formatearFecha = (fecha) => {
   if (!fecha) return ''
   
@@ -517,6 +516,23 @@ const mostrarToast = async (mensaje, color = 'medium') => {
   })
   await toast.present()
 }
+
+const recargarDatos = async () => {
+  console.log('🔄 Recargando datos de GestionAmigos...')
+  
+  if (isAuthenticated.value) {
+    await Promise.all([
+      cargarPeticionesRecibidas(),
+      cargarPeticionesEnviadas()
+    ])
+  }
+  
+  console.log('✅ Datos de GestionAmigos recargados')
+}
+
+defineExpose({
+  recargarDatos
+})
 
 // Lifecycle
 onMounted(async () => {

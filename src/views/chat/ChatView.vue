@@ -111,13 +111,13 @@
           ></ion-input>
           
           <ion-button 
-            fill="clear" 
+            fill="solid" 
             @click="enviarMensaje"
             :disabled="!canSendMessage || !nuevoMensaje.trim()"
             class="send-button"
             :class="{ 'active': nuevoMensaje.trim() }"
           >
-            <ion-icon name="send" class="send-icon"></ion-icon>
+          <ion-icon name="paper-plane" ></ion-icon>
           </ion-button>
         </div>
       </div>
@@ -146,6 +146,7 @@ import {
   removeStateChangeListener,
   getConnectionDebugInfo
 } from "@/services/chatWebSocket";
+import { send } from 'ionicons/icons'; // *** AGREGAR ESTA LÍNEA ***
 
 // Composables
 const { isDarkMode } = useTheme();
@@ -932,31 +933,59 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
+/* ===== BOTÓN ENVIAR CON ICONO BLANCO ===== */
 .send-button {
-  --color: var(--ig-text-secondary);
-  --padding: 6px;
-  --border-radius: 50%;
+  --color: white !important;
+  --background: #007aff !important;
+  --padding: 12px !important;
+  --border-radius: 50% !important;
   margin: 0;
-  width: 32px;
-  height: 32px;
+  width: 56px !important; /* MÁS GRANDE - era 36px */
+  height: 56px !important; /* MÁS GRANDE - era 36px */
   flex-shrink: 0;
   transition: all 0.2s ease;
+  border: none !important;
 }
 
 .send-button.active {
-  --color: var(--ig-message-own);
+  --color: white !important; /* Mantener blanco */
+  --background: #0056b3 !important; /* Azul más intenso */
 }
 
-.send-button:hover {
-  --background: rgba(0, 0, 0, 0.05);
+.send-button:disabled {
+  --color: #cccccc !important; /* Gris claro cuando deshabilitado */
+  --background: #f0f0f0 !important; /* Fondo gris */
+  opacity: 0.6;
 }
 
-.dark-mode .send-button:hover {
-  --background: rgba(255, 255, 255, 0.05);
+.send-button:hover:not(:disabled) {
+  --background: #0056b3 !important; /* Azul más oscuro al hover */
 }
 
-.send-icon {
-  font-size: 18px;
+/* Asegurar que el icono sea blanco */
+.send-button ion-icon {
+  color: white !important;
+  font-size: 18px !important; /* Mantener igual */
+}
+
+/* Modo oscuro para el botón */
+.dark-mode .send-button {
+  --color: white !important;
+  --background: #007aff !important;
+}
+
+.dark-mode .send-button.active {
+  --color: white !important;
+  --background: #0056b3 !important;
+}
+
+.dark-mode .send-button:disabled {
+  --color: #666666 !important;
+  --background: #333333 !important;
+}
+
+.dark-mode .send-button ion-icon {
+  color: white !important;
 }
 
 /* Animations */
@@ -988,6 +1017,20 @@ onBeforeUnmount(() => {
   .input-container {
     padding: 8px 12px;
   }
+  
+  
+  .send-button ion-icon {
+    font-size: 16px !important;
+  }
+  .send-button {
+    width: 56px !important; /* Extra grande */
+    height: 56px !important; /* Extra grande */
+  }
+  
+  .input-wrapper {
+    min-height: 60px; /* Contenedor más alto */
+  }
+
 }
 
 /* Dark mode específico para elementos de Ionic */

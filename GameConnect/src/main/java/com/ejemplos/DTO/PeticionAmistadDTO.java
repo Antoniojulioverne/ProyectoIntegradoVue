@@ -12,7 +12,15 @@ public class PeticionAmistadDTO {
     private String usernameRemitente;
     private String emailRemitente;
     private String skinRemitente;
+  private String fotopersonaRemitente; 
+    private Long usuarioDestinatarioId;
+    private String usernameDestinatario;
+    private String emailDestinatario;
+    private String skinDestinatario;
+    private String fotopersonaDestinatario;
+    
     private String estado;
+    
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime fechaCreacion;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
