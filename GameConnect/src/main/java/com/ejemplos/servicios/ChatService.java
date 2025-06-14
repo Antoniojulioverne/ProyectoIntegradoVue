@@ -15,6 +15,8 @@ import com.ejemplos.modelo.*;
 @Transactional
 public class ChatService {
     
+	@Autowired
+	private MensajeEncriptarService mensajeEncriptarService;
     @Autowired
     private ChatRepositorio chatRepositorio;
     
@@ -155,8 +157,14 @@ public class ChatService {
     
     public List<MensajeDTO> obtenerMensajesDeChat(Long chatId) {
         List<Mensaje> mensajes = mensajeRepositorio.findByChatChatIdOrderByFechaEnvioAsc(chatId);
+        
         return mensajes.stream()
-            .map(mensajeDTOConverter::convertirADto)
+            .map(mensaje -> {
+                MensajeDTO dto = mensajeDTOConverter.convertirADto(mensaje);
+                // *** ÚNICA LÍNEA AGREGADA ***
+                dto.setContenido(mensajeEncriptarService.descifrarMensaje(mensaje.getContenido()));
+                return dto;
+            })
             .collect(Collectors.toList());
     }
     
@@ -176,13 +184,16 @@ public class ChatService {
         Mensaje mensaje = Mensaje.builder()
             .chat(chat)
             .usuario(usuario)
-            .contenido(dto.getContenido())
+            .contenido(mensajeEncriptarService.cifrarMensaje(dto.getContenido()))
             .tipo(TipoMensaje.valueOf(dto.getTipo()))
             .esLeido(false) // Inicializar como no leído
             .build();
         
         mensaje = mensajeRepositorio.save(mensaje);
-        return mensajeDTOConverter.convertirADto(mensaje);
+        // *** CORREGIR: Devolver contenido descifrado ***
+        MensajeDTO mensajeDTO = mensajeDTOConverter.convertirADto(mensaje);
+        mensajeDTO.setContenido(dto.getContenido()); // Contenido original (descifrado)
+        return mensajeDTO;
     }
     
     // Método actualizado que retorna los IDs de mensajes marcados como leídos
@@ -239,7 +250,11 @@ public class ChatService {
             mensajes.stream()
                 .filter(m -> !m.getUsuario().getUsuarioId().equals(usuarioId) && 
                             (m.getEsLeido() == null || !m.getEsLeido()))
-                .forEach(m -> mensajesNoLeidos.add(mensajeDTOConverter.convertirADto(m)));
+                .forEach(m -> {
+                    MensajeDTO dto = mensajeDTOConverter.convertirADto(m);
+                    dto.setContenido(mensajeEncriptarService.descifrarMensaje(m.getContenido()));
+                    mensajesNoLeidos.add(dto);
+                });
         }
         
         return mensajesNoLeidos;
@@ -254,11 +269,13 @@ public class ChatService {
             .count();
     }
     
-    // Nuevo método para obtener el último mensaje de un chat
     public Optional<MensajeDTO> obtenerUltimoMensaje(Long chatId) {
         List<Mensaje> mensajes = mensajeRepositorio.findByChatChatIdOrderByFechaEnvioDesc(chatId);
         if (!mensajes.isEmpty()) {
-            return Optional.of(mensajeDTOConverter.convertirADto(mensajes.get(0)));
+            MensajeDTO dto = mensajeDTOConverter.convertirADto(mensajes.get(0));
+            // *** AGREGAR ESTA LÍNEA ***
+            dto.setContenido(mensajeEncriptarService.descifrarMensaje(mensajes.get(0).getContenido()));
+            return Optional.of(dto);
         }
         return Optional.empty();
     }
