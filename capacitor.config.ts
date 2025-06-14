@@ -3,6 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'io.ionic.starter',
   appName: 'ProyectoWeb',
+   webDir: 'dist',
    server: {
     // CRÍTICO: Permitir contenido HTTP desde HTTPS
     allowNavigation: [
@@ -12,8 +13,7 @@ const config: CapacitorConfig = {
       'http://10.0.2.2:8090' // Para emulador Android
     ],
     cleartext: true,
-    // Permitir mixed content (HTTP desde HTTPS)
-    allowMixedContent: true
+
   },
   android: {
     // Permitir mixed content en Android
