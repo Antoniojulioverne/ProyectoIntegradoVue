@@ -59,16 +59,7 @@
                   <span class="stat-value">{{ userStats.maxScore || 0 }}</span>
                   <span class="stat-label">Puntuacion Maxima</span>
                 </div>
-                <div class="stat-item">
-                  <ion-icon name="medal" class="stat-icon"></ion-icon>
-                  <span class="stat-value">{{ userStats.totalCoins || '?' }}</span>
-                  <span class="stat-label">Monedas Totales</span>
-                </div>
-                 <div class="stat-item">
-                  <ion-icon name="medal" class="stat-icon"></ion-icon>
-                  <span class="stat-value">{{ userStats.totalPoints || '?' }}</span>
-                  <span class="stat-label">Puntos Totales</span>
-                </div>
+              
                 <div class="stat-item">
                   <ion-icon name="medal" class="stat-icon"></ion-icon>
                   <span class="stat-value">{{ userStats.averageScore || '?' }}</span>
